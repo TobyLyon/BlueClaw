@@ -98,6 +98,13 @@ export default function ClawCordLanding() {
           {/* Glow overlay for bloom effect */}
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-red-900/5 to-[#1a1a1a]" />
           <div className="absolute inset-0 bg-[#1a1a1a]/20" style={{ mixBlendMode: 'overlay' }} />
+          {/* Radial mask to soften ASCII in center text area */}
+          <div 
+            className="absolute inset-0" 
+            style={{ 
+              background: 'radial-gradient(ellipse 60% 50% at 50% 45%, rgba(26, 26, 26, 0.7) 0%, rgba(26, 26, 26, 0.3) 40%, transparent 70%)'
+            }} 
+          />
         </div>
 
         {/* Hero Content */}
