@@ -6,17 +6,6 @@ import Image from "next/image";
 import { Header } from "@/components/clawcord/header";
 import { AsciiShader } from "@/components/ascii-shader";
 
-// Floating icons for hero section
-const floatingIcons = [
-  { icon: "🦀", x: "10%", y: "20%", delay: 0 },
-  { icon: "📊", x: "85%", y: "15%", delay: 0.2 },
-  { icon: "🚀", x: "5%", y: "60%", delay: 0.4 },
-  { icon: "💎", x: "90%", y: "55%", delay: 0.6 },
-  { icon: "⚡", x: "15%", y: "80%", delay: 0.8 },
-  { icon: "🎯", x: "80%", y: "75%", delay: 1.0 },
-  { icon: "🔔", x: "25%", y: "10%", delay: 0.3 },
-  { icon: "📈", x: "70%", y: "25%", delay: 0.5 },
-];
 
 // Command examples for code boxes
 const commandExamples = [
@@ -96,41 +85,18 @@ export default function ClawCordLanding() {
 
       {/* ===== HERO SECTION ===== */}
       <section className="relative min-h-[85vh] flex items-center justify-center overflow-hidden">
-        {/* ASCII Shader Background - Dark mode */}
+        {/* ASCII Shader Background - Shimmer wave effect */}
         <div className="absolute inset-0 z-0">
           <AsciiShader
-            mode="plasma"
-            color="#4a2020"
+            mode="shimmer"
+            color="#6b2020"
             bgColor="#1a1a1a"
-            density={1.0}
-            speed={0.3}
-            charRamp=" .:-=+*#%@"
+            density={1.2}
+            speed={0.8}
+            charRamp=" .:;+*#%@"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#1a1a1a]/50 via-transparent to-[#1a1a1a]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#1a1a1a]/30 via-transparent to-[#1a1a1a]" />
         </div>
-
-        {/* Floating Icons */}
-        {floatingIcons.map((item, i) => (
-          <motion.div
-            key={i}
-            className="absolute text-3xl md:text-4xl opacity-60 pointer-events-none"
-            style={{ left: item.x, top: item.y }}
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ 
-              opacity: [0.4, 0.7, 0.4],
-              scale: 1,
-              y: [0, -10, 0],
-            }}
-            transition={{
-              delay: item.delay,
-              duration: 3,
-              repeat: Infinity,
-              repeatType: "reverse",
-            }}
-          >
-            {item.icon}
-          </motion.div>
-        ))}
 
         {/* Hero Content */}
         <div className="relative z-10 text-center px-6 max-w-4xl mx-auto">

@@ -14,7 +14,8 @@ export type ShaderMode =
   | "tunnel"
   | "moire"
   | "pulse"
-  | "grid";
+  | "grid"
+  | "shimmer";
 
 export interface AsciiShaderConfig {
   mode?: ShaderMode;
@@ -168,6 +169,32 @@ const shaderFields: Record<ShaderMode, FieldFunction> = {
     const combined = gridX * gridY;
     const pulse = fastSin(t * 2) * 0.2;
     return combined * 0.5 + 0.5 + pulse * (1 - Math.sqrt(x * x + y * y));
+  },
+
+  shimmer: (x, y, t, seed) => {
+    // Horizontal wave shimmer effect sweeping across the screen
+    const waveSpeed = t * 1.5;
+    const waveFreq = 2.5;
+    const shimmerWidth = 0.4;
+    
+    // Multiple overlapping waves at different speeds
+    const wave1 = fastSin(x * waveFreq + waveSpeed + seed);
+    const wave2 = fastSin(x * waveFreq * 1.3 + waveSpeed * 0.7 + seed * 0.5);
+    const wave3 = fastSin(x * waveFreq * 0.7 + waveSpeed * 1.2 + y * 0.5 + seed * 0.3);
+    
+    // Subtle vertical variation
+    const yVar = fastSin(y * 3 + t * 0.3) * 0.15;
+    
+    // Combine waves with brightness peaks
+    const combined = (wave1 + wave2 * 0.6 + wave3 * 0.4) / 2;
+    
+    // Create shimmer highlights
+    const highlight = Math.pow(Math.max(0, combined), 2) * 0.8;
+    
+    // Base ambient glow
+    const ambient = 0.15 + fastSin(x * 1.5 + y * 1.5 + t * 0.5) * 0.08;
+    
+    return Math.min(1, ambient + highlight + yVar);
   },
 };
 
