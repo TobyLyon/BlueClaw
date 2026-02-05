@@ -124,7 +124,7 @@ export default function BlueClawLanding() {
             </span>
           </div>
           <div className="flex items-center gap-4">
-            <a href="https://t.me/BlueClawCallsBot" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition-colors text-sm">
+            <a href="/docs" className="text-gray-400 hover:text-white transition-colors text-sm">
               Docs
             </a>
             <a
