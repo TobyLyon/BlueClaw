@@ -357,13 +357,14 @@ export class GraduationWatcher {
     return candidates.sort((a, b) => b.score - a.score);
   }
 
-  // Scan specifically for fresh/new pairs using the latest pairs endpoint
+  // Scan specifically for fresh/new pairs using boosts + profiles (working endpoints)
   async scanFreshGraduations(
     filter: GraduationFilter
   ): Promise<GraduationCandidate[]> {
-    console.log("[GraduationWatcher] Starting FRESH scan (latest pairs endpoint)...");
-    const pairs = await this.dexProvider.getLatestSolanaPairs(50);
-    console.log(`[GraduationWatcher] Got ${pairs.length} latest Solana pairs`);
+    console.log("[GraduationWatcher] Starting FRESH scan...");
+    // Use the working boosts+profiles endpoints instead of the dead /latest/dex/pairs/solana
+    const pairs = await this.dexProvider.getLatestPumpFunGraduations(100);
+    console.log(`[GraduationWatcher] Got ${pairs.length} pairs from boosts+profiles`);
     
     const candidates: GraduationCandidate[] = [];
     const helius = getHeliusProvider();
@@ -439,8 +440,9 @@ export class GraduationWatcher {
     maxAgeMinutes: number = 120
   ): Promise<GraduationCandidate[]> {
     console.log("[GraduationWatcher] Starting ALL GRADS scan (unfiltered)...");
-    const pairs = await this.dexProvider.getLatestSolanaPairs(50);
-    console.log(`[GraduationWatcher] Got ${pairs.length} latest Solana pairs`);
+    // Use the working boosts+profiles endpoints instead of the dead /latest/dex/pairs/solana
+    const pairs = await this.dexProvider.getLatestPumpFunGraduations(100);
+    console.log(`[GraduationWatcher] Got ${pairs.length} pairs from boosts+profiles`);
 
     const candidates: GraduationCandidate[] = [];
     const helius = getHeliusProvider();

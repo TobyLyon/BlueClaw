@@ -514,19 +514,18 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
         const watcher = new GraduationWatcher();
         // Relaxed filter - focus on genuinely new tokens
         const freshFilter = {
-          minLiquidity: 5000,
-          minVolume5m: 100,
+          minLiquidity: 3000,
+          minVolume5m: 50,
           minHolders: 10, // Low threshold for very new tokens
-          maxAgeMinutes: 60, // Last hour only
+          maxAgeMinutes: 120, // Last 2 hours
           excludeRuggedDeployers: false,
         };
         
-        // Use the fresh-specific scanner that hits /latest/dex/pairs/solana
         const graduations = await watcher.scanFreshGraduations(freshFilter);
         const config = await getOrCreateChatConfig({ chatId });
         
         if (graduations.length === 0) {
-          await sendMessage(chatId, "🆕 No fresh graduations in the last hour.\n\nTokens must be <60 min old with minimum liquidity. Try again soon.");
+          await sendMessage(chatId, "🆕 No fresh graduations found.\n\nTokens must be <2h old with minimum liquidity. Try /grads for unfiltered results.");
           break;
         }
         
