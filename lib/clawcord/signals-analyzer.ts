@@ -155,13 +155,12 @@ export async function analyzeWhaleActivity(mint: string): Promise<{
         address: holder.address,
         balance,
         percentage,
-        isAccumulating: Math.random() > 0.3, // Would need historical data for real tracking
+        isAccumulating: i < 3, // Top 3 holders assumed accumulating (no historical data yet)
         lastActivity: "recent",
       });
     }
   }
 
-  // Simulate accumulating/distributing based on holder patterns
   const accumulating = whales.filter(w => w.isAccumulating).length;
   const distributing = whales.length - accumulating;
 
@@ -226,7 +225,7 @@ export async function analyzeHolders(mint: string): Promise<HolderAnalysis> {
 
   return {
     totalHolders: estimatedTotal,
-    holderGrowth1h: Math.floor(Math.random() * 50) + 10, // Would need historical data
+    holderGrowth1h: 0, // Requires historical data tracking
     top10Concentration: Math.round(top10Total * 10) / 10,
     whaleCount,
     avgHolding: supply / estimatedTotal,
@@ -396,10 +395,10 @@ export function formatHoldersMessage(
     `👥 <b>Holder Distribution</b> | $${symbol}`,
     ``,
     `📊 Total: <b>~${data.totalHolders.toLocaleString()} holders</b>`,
-    `📈 Growth: <b>+${data.holderGrowth1h} (1h)</b>`,
     ``,
     `🏆 Top 10: ${data.top10Concentration}%`,
     `🐋 Whales (>1%): ${data.whaleCount}`,
+    `📊 Large (0.1-1%): ${data.distribution.large}`,
     ``,
     `${riskEmoji} Risk: <b>${data.riskLevel}</b>`,
     ``,

@@ -173,6 +173,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Clean stale scan cache entries
+    cleanScanCache();
+
     const update: TelegramUpdate = await request.json();
     
     // Handle callback queries
@@ -279,6 +282,7 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
     }
 
     case "alpha": {
+      await sendMessage(chatId, "🔍 Finding alpha...");
       try {
         const config = await getOrCreateChatConfig({ chatId, userId });
         const watcher = new GraduationWatcher();
@@ -289,15 +293,14 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
           break;
         }
         
-        // Only show tokens that pass ALL filters (including liq ratio, buy/sell ratio)
-        // AND have a high score - this is the "alpha" command so be strict
+        // Only show tokens that pass ALL filters — strict for alpha
         const minScore = config.display?.minScore || 7;
         const filtered = candidates
           .filter((c: any) => c.passesFilter && c.score >= minScore)
-          .sort((a: any, b: any) => b.score - a.score);
+          .sort((a: any, b: any) => b.score - a.score)
+          .slice(0, 5);
         
         if (filtered.length === 0) {
-          // Show why no alpha - check if it's filtering or scoring
           const passingFilter = candidates.filter((c: any) => c.passesFilter);
           if (passingFilter.length === 0) {
             await sendMessage(chatId, "🔍 No tokens passing scam filters right now.\n\nAll candidates failed liquidity ratio, buy/sell ratio, or other safety checks.");
@@ -307,16 +310,12 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
           break;
         }
         
-        const top = filtered[0];
-        const signalKeyboard = modules.generateSignalKeyboard(
-          top.graduation.mint,
-          top.pair.url,
-          top.pair.info?.socials,
-          top.pair.info?.websites
-        );
-        await sendMessage(chatId, modules.formatCompactSignalCard(top, config.vibeMode), {
+        // Cache and show with ticker buttons
+        scanCache.set(chatId, { candidates: filtered, timestamp: Date.now() });
+        const tickerKeyboard = modules.generateTickerKeyboard(filtered);
+        await sendMessage(chatId, modules.formatScanResults(filtered, config.vibeMode), {
           parseMode: "HTML",
-          inlineKeyboard: modules.signalKeyboardToTelegram(signalKeyboard),
+          inlineKeyboard: modules.signalKeyboardToTelegram(tickerKeyboard),
         });
       } catch (error) {
         console.error("Alpha command error:", error);
@@ -686,6 +685,26 @@ async function handleCallbackQuery(query: TelegramCallbackQuery): Promise<void> 
           callback_query_id: query.id, 
           text: `Vibe: ${config.vibeMode}` 
         });
+      } else if (payload === "risk") {
+        // Show risk level selection keyboard
+        const config = await getOrCreateChatConfig({ chatId });
+        const currentScore = config.display?.minScore || config.policy.thresholds.minConfidenceScore || 5;
+        await telegramAPI("editMessageText", {
+          chat_id: chatId,
+          message_id: messageId,
+          text: `📊 <b>Set Min Score</b>\n\nCurrent: <b>${currentScore}/10</b>\nHigher = stricter (fewer, safer picks)`,
+          parse_mode: "HTML",
+          reply_markup: { inline_keyboard: [
+            [
+              { text: "3 🎰", callback_data: "setrisk:3" },
+              { text: "5 📊", callback_data: "setrisk:5" },
+              { text: "7 ✨", callback_data: "setrisk:7" },
+              { text: "9 🔥", callback_data: "setrisk:9" },
+            ],
+            [{ text: "❌ Cancel", callback_data: "close" }],
+          ]},
+        });
+        await telegramAPI("answerCallbackQuery", { callback_query_id: query.id });
       }
       break;
 
@@ -713,9 +732,118 @@ async function handleCallbackQuery(query: TelegramCallbackQuery): Promise<void> 
       await telegramAPI("answerCallbackQuery", { callback_query_id: query.id });
       break;
 
+    case "setrisk": {
+      if (!isAdmin) {
+        await telegramAPI("answerCallbackQuery", { callback_query_id: query.id, text: "Admin only", show_alert: true });
+        return;
+      }
+      const newScore = parseInt(payload, 10);
+      if (!isNaN(newScore) && newScore >= 1 && newScore <= 10) {
+        const cfg = await getOrCreateChatConfig({ chatId });
+        if (!cfg.display) {
+          cfg.display = { minScore: newScore, showVolume: true, showHolders: true, showLinks: true };
+        } else {
+          cfg.display.minScore = newScore;
+        }
+        cfg.policy.thresholds.minConfidenceScore = newScore;
+        await getTelegramStorage().saveChatConfig(cfg);
+        await telegramAPI("editMessageText", {
+          chat_id: chatId,
+          message_id: messageId,
+          text: `✅ Min score set to <b>${newScore}/10</b>`,
+          parse_mode: "HTML",
+        });
+      }
+      await telegramAPI("answerCallbackQuery", { callback_query_id: query.id });
+      break;
+    }
+
     case "refresh":
       await telegramAPI("answerCallbackQuery", { callback_query_id: query.id, text: "Refreshing..." });
       break;
+
+    case "whale": {
+      // Signal button: run whale analysis inline
+      const wMint = payload;
+      await telegramAPI("answerCallbackQuery", { callback_query_id: query.id, text: "Analyzing whales..." });
+      try {
+        const signals = await import("@/lib/clawcord/signals-analyzer");
+        const whaleData = await signals.analyzeWhaleActivity(wMint);
+        const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${wMint}`);
+        const dexData = await dexRes.json();
+        const symbol = dexData.pairs?.[0]?.baseToken?.symbol || "TOKEN";
+        await sendMessage(chatId, signals.formatWhaleMessage(symbol, wMint, whaleData), {
+          parseMode: "HTML",
+          inlineKeyboard: signals.generateSignalKeyboard(wMint, "whale"),
+        });
+      } catch {
+        await sendMessage(chatId, "❌ Error analyzing whales.");
+      }
+      break;
+    }
+
+    case "holders": {
+      const hMint = payload;
+      await telegramAPI("answerCallbackQuery", { callback_query_id: query.id, text: "Analyzing holders..." });
+      try {
+        const signals = await import("@/lib/clawcord/signals-analyzer");
+        const holderData = await signals.analyzeHolders(hMint);
+        const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${hMint}`);
+        const dexData = await dexRes.json();
+        const symbol = dexData.pairs?.[0]?.baseToken?.symbol || "TOKEN";
+        await sendMessage(chatId, signals.formatHoldersMessage(symbol, hMint, holderData), {
+          parseMode: "HTML",
+          inlineKeyboard: signals.generateSignalKeyboard(hMint, "holders"),
+        });
+      } catch {
+        await sendMessage(chatId, "❌ Error analyzing holders.");
+      }
+      break;
+    }
+
+    case "momentum": {
+      const mMint = payload;
+      await telegramAPI("answerCallbackQuery", { callback_query_id: query.id, text: "Analyzing momentum..." });
+      try {
+        const signals = await import("@/lib/clawcord/signals-analyzer");
+        const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mMint}`);
+        const dexData = await dexRes.json();
+        const pair = dexData.pairs?.[0];
+        if (pair) {
+          const symbol = pair.baseToken?.symbol || "TOKEN";
+          const momentumData = signals.analyzeMomentum(pair);
+          await sendMessage(chatId, signals.formatMomentumMessage(symbol, mMint, momentumData, pair), {
+            parseMode: "HTML",
+            inlineKeyboard: signals.generateSignalKeyboard(mMint, "momentum"),
+          });
+        }
+      } catch {
+        await sendMessage(chatId, "❌ Error analyzing momentum.");
+      }
+      break;
+    }
+
+    case "risk": {
+      const rMint = payload;
+      await telegramAPI("answerCallbackQuery", { callback_query_id: query.id, text: "Analyzing risk..." });
+      try {
+        const signals = await import("@/lib/clawcord/signals-analyzer");
+        const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${rMint}`);
+        const dexData = await dexRes.json();
+        const pair = dexData.pairs?.[0];
+        if (pair) {
+          const symbol = pair.baseToken?.symbol || "TOKEN";
+          const riskData = await signals.analyzeRisk(rMint, pair);
+          await sendMessage(chatId, signals.formatRiskMessage(symbol, rMint, riskData), {
+            parseMode: "HTML",
+            inlineKeyboard: signals.generateSignalKeyboard(rMint, "risk"),
+          });
+        }
+      } catch {
+        await sendMessage(chatId, "❌ Error analyzing risk.");
+      }
+      break;
+    }
 
     case "ticker": {
       // User clicked on a ticker - show detailed card with PFP
