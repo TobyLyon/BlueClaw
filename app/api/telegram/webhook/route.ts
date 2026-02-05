@@ -212,17 +212,15 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
       await sendMessage(chatId, [
         "🦞 *BlueClaw Activated*",
         "",
-        "Alpha signal caller, now on Telegram.",
+        "Whale tracking. Holder analysis. On-chain signals.",
         "",
         "Use /help to see commands.",
-        "",
-        "_Clawcord, but born on Telegram._",
       ].join("\n"));
       break;
     }
 
     case "help": {
-      await sendMessage(chatId, modules.formatHelpMessage());
+      await sendMessage(chatId, modules.formatHelpMessage(), { parseMode: "HTML" });
       break;
     }
 
