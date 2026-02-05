@@ -233,7 +233,7 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
       const minScore = config.display?.minScore || 6.5;
       const filtered = candidates.filter((c: any) => c.passesFilter && c.score >= minScore);
       
-      await sendMessage(chatId, modules.formatScanResults(filtered, config.vibeMode));
+      await sendMessage(chatId, modules.formatScanResults(filtered, config.vibeMode), { parseMode: "HTML" });
       
       if (filtered.length > 0) {
         const top = filtered[0];
@@ -280,7 +280,7 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
     case "status": {
       const config = await getOrCreateChatConfig({ chatId });
       const stats = await getTelegramStorage().getStats();
-      await sendMessage(chatId, modules.formatStatusMessage(config, stats));
+      await sendMessage(chatId, modules.formatStatusMessage(config, stats), { parseMode: "HTML" });
       break;
     }
 
@@ -294,13 +294,14 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
       const autoStatus = config.policy.autopostEnabled ? "ON" : "OFF";
       
       await sendMessage(chatId, [
-        "*Configuration*",
+        "<b>Configuration</b>",
         "",
         `Policy: ${config.policy.name}`,
         `Min Score: ${config.display?.minScore || config.policy.thresholds.minConfidenceScore}/10`,
         `Autopost: ${autoStatus}`,
         `Vibe: ${config.vibeMode}`,
       ].join("\n"), {
+        parseMode: "HTML",
         inlineKeyboard: [
           [
             { text: "📊 Set Risk", callback_data: "config:risk" },
@@ -336,7 +337,7 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
       }
       config.policy.thresholds.minConfidenceScore = score;
       await getTelegramStorage().saveChatConfig(config);
-      await sendMessage(chatId, `✅ Min score set to *${score}/10*`);
+      await sendMessage(chatId, `✅ Min score set to <b>${score}/10</b>`, { parseMode: "HTML" });
       break;
     }
 
@@ -351,8 +352,9 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
       await getTelegramStorage().saveChatConfig(config);
       
       await sendMessage(chatId, config.policy.autopostEnabled 
-        ? "✅ *Autopost enabled*" 
-        : "❌ *Autopost disabled*"
+        ? "✅ <b>Autopost enabled</b>" 
+        : "❌ <b>Autopost disabled</b>",
+        { parseMode: "HTML" }
       );
       break;
     }
@@ -366,10 +368,11 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
       const config = await getOrCreateChatConfig({ chatId });
       const presets = modules.getPolicyPresets();
       
-      const lines = [`*Current:* ${config.policy.name}`, "", "*Available:*"];
+      const lines = [`<b>Current:</b> ${config.policy.name}`, "", "<b>Available:</b>"];
       presets.forEach((p: any) => lines.push(`• ${p.name}`));
       
       await sendMessage(chatId, lines.join("\n"), {
+        parseMode: "HTML",
         inlineKeyboard: modules.generatePolicyKeyboard().map((row: any) =>
           row.map((btn: any) => ({ text: btn.text, callback_data: btn.callbackData }))
         ),
