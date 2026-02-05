@@ -7,6 +7,21 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
 
+// Cache for scan results (allows clicking tickers to show details)
+// Key: chatId, Value: { candidates, timestamp }
+const scanCache = new Map<string, { candidates: any[]; timestamp: number }>();
+
+// Clean old cache entries (older than 10 minutes)
+function cleanScanCache() {
+  const now = Date.now();
+  const maxAge = 10 * 60 * 1000; // 10 minutes
+  for (const [key, value] of scanCache.entries()) {
+    if (now - value.timestamp > maxAge) {
+      scanCache.delete(key);
+    }
+  }
+}
+
 // Import types inline to avoid build issues
 interface TelegramUser {
   id: number;
@@ -247,18 +262,14 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
           break;
         }
         
-        await sendMessage(chatId, modules.formatScanResults(filtered, config.vibeMode), { parseMode: "HTML" });
+        // Store candidates in memory for callback retrieval
+        scanCache.set(chatId, { candidates: filtered, timestamp: Date.now() });
         
-        const top = filtered[0];
-        const signalKeyboard = modules.generateSignalKeyboard(
-          top.graduation.mint,
-          top.pair.url,
-          top.pair.info?.socials,
-          top.pair.info?.websites
-        );
-        await sendMessage(chatId, modules.formatCompactSignalCard(top, config.vibeMode), {
+        // Send scan results with clickable ticker buttons
+        const tickerKeyboard = modules.generateTickerKeyboard(filtered);
+        await sendMessage(chatId, modules.formatScanResults(filtered, config.vibeMode), { 
           parseMode: "HTML",
-          inlineKeyboard: modules.signalKeyboardToTelegram(signalKeyboard),
+          inlineKeyboard: modules.signalKeyboardToTelegram(tickerKeyboard),
         });
       } catch (error) {
         console.error("Scan error:", error);
@@ -711,6 +722,66 @@ async function handleCallbackQuery(query: TelegramCallbackQuery): Promise<void> 
     case "refresh":
       await telegramAPI("answerCallbackQuery", { callback_query_id: query.id, text: "Refreshing..." });
       break;
+
+    case "ticker": {
+      // User clicked on a ticker - show detailed card with PFP
+      const mint = payload;
+      const cached = scanCache.get(chatId);
+      
+      if (!cached) {
+        await telegramAPI("answerCallbackQuery", { 
+          callback_query_id: query.id, 
+          text: "Scan expired. Run /scan again.",
+          show_alert: true 
+        });
+        return;
+      }
+      
+      const candidate = cached.candidates.find((c: any) => c.graduation.mint === mint);
+      if (!candidate) {
+        await telegramAPI("answerCallbackQuery", { 
+          callback_query_id: query.id, 
+          text: "Token not found in scan results.",
+          show_alert: true 
+        });
+        return;
+      }
+      
+      await telegramAPI("answerCallbackQuery", { callback_query_id: query.id });
+      
+      // Get token image URL from DexScreener pair info
+      const imageUrl = candidate.pair.info?.imageUrl;
+      const config = await getOrCreateChatConfig({ chatId });
+      
+      // Generate signal keyboard with all links
+      const signalKeyboard = modules.generateSignalKeyboard(
+        candidate.graduation.mint,
+        candidate.pair.url,
+        candidate.pair.info?.socials,
+        candidate.pair.info?.websites
+      );
+      
+      // Format detailed card
+      const cardText = modules.formatDetailedTokenCard(candidate, config.vibeMode);
+      
+      if (imageUrl) {
+        // Send photo with caption and keyboard
+        await telegramAPI("sendPhoto", {
+          chat_id: chatId,
+          photo: imageUrl,
+          caption: cardText,
+          parse_mode: "HTML",
+          reply_markup: { inline_keyboard: modules.signalKeyboardToTelegram(signalKeyboard) },
+        });
+      } else {
+        // No image, send text message
+        await sendMessage(chatId, cardText, {
+          parseMode: "HTML",
+          inlineKeyboard: modules.signalKeyboardToTelegram(signalKeyboard),
+        });
+      }
+      break;
+    }
 
     default:
       await telegramAPI("answerCallbackQuery", { callback_query_id: query.id });

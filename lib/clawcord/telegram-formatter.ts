@@ -2,7 +2,7 @@
 // Caller-style messaging for Telegram (trencher vibes, not robotic)
 
 import type { CallCard, GraduationCandidate } from "./types";
-import type { TelegramChatConfig, InlineKeyboardRow } from "./telegram-types";
+import type { TelegramChatConfig, InlineKeyboardRow, InlineButton } from "./telegram-types";
 
 type VibeMode = "aggressive" | "neutral" | "cautious";
 
@@ -433,4 +433,74 @@ export function signalKeyboardToTelegram(
       ...(btn.callbackData ? { callback_data: btn.callbackData } : {}),
     }))
   );
+}
+
+// Generate clickable ticker buttons for scan results
+export function generateTickerKeyboard(
+  candidates: GraduationCandidate[]
+): InlineKeyboardRow[] {
+  const keyboard: InlineKeyboardRow[] = [];
+  const tokens = candidates.slice(0, 5);
+  
+  // Create rows of 2 buttons each
+  for (let i = 0; i < tokens.length; i += 2) {
+    const row: InlineButton[] = [];
+    for (let j = i; j < Math.min(i + 2, tokens.length); j++) {
+      const c = tokens[j];
+      row.push({
+        text: `${j + 1}. $${c.graduation.symbol}`,
+        callbackData: `ticker:${c.graduation.mint}`,
+      });
+    }
+    keyboard.push(row);
+  }
+  
+  return keyboard;
+}
+
+// Format detailed token card with image caption
+export function formatDetailedTokenCard(
+  candidate: GraduationCandidate,
+  vibeMode: VibeMode = "neutral"
+): string {
+  const { graduation, pair, score, metrics } = candidate;
+  const priceChange = pair.priceChange?.m5 || 0;
+  const symbol = escapeHtml(graduation.symbol);
+  const mcapRaw = pair.marketCap || 0;
+  const liqRaw = pair.liquidity?.usd || 0;
+  const mcap = formatNum(mcapRaw);
+  const liq = formatNum(liqRaw);
+  const vol5m = formatNum(pair.volume?.m5 || 0);
+  const vol1h = formatNum(pair.volume?.h1 || 0);
+  
+  // Calculate liquidity ratio
+  const liqRatio = mcapRaw > 0 ? ((liqRaw / mcapRaw) * 100) : 0;
+  const liqRatioEmoji = liqRatio >= 15 ? "✅" : liqRatio >= 10 ? "⚠️" : "🚨";
+  
+  // Buy/sell info
+  const buys = pair.txns?.m5?.buys || 0;
+  const sells = pair.txns?.m5?.sells || 0;
+  const buySellRatio = sells > 0 ? (buys / sells).toFixed(2) : "∞";
+  
+  // Score emoji
+  const scoreEmoji = score >= 8 ? "🔥" : score >= 7 ? "✨" : score >= 6 ? "👀" : "📊";
+  const changeEmoji = priceChange > 10 ? "🚀" : priceChange > 0 ? "📈" : priceChange < -10 ? "📉" : "";
+  
+  const lines = [
+    `${scoreEmoji} <b>$${symbol}</b> ${changeEmoji}`,
+    ``,
+    `💰 <b>$${mcap}</b> MCap · 💧 <b>$${liq}</b> Liq`,
+    `${liqRatioEmoji} Liq/MC: <b>${liqRatio.toFixed(1)}%</b>`,
+    `📊 5m: ${priceChange > 0 ? "+" : ""}${priceChange.toFixed(1)}%`,
+    ``,
+    `📈 Vol 5m: $${vol5m} · 1h: $${vol1h}`,
+    `🔄 Buys/Sells: ${buys}/${sells} (${buySellRatio}x)`,
+    `👥 Holders: ${metrics?.holders || "?"}`,
+    ``,
+    `⭐ <b>Score: ${score.toFixed(1)}/10</b>`,
+    ``,
+    `<code>${graduation.mint}</code>`,
+  ];
+  
+  return lines.join("\n");
 }
