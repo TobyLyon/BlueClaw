@@ -6,26 +6,12 @@ import type { TelegramChatConfig, InlineKeyboardRow, InlineButton } from "./tele
 
 type VibeMode = "aggressive" | "neutral" | "cautious";
 
-// Chain icons mapping
-const CHAIN_ICONS: Record<string, string> = {
-  solana: "◎",      // Solana logo-like circle
-  ethereum: "Ξ",    // ETH symbol
-  base: "🔵",       // Base blue
-  bsc: "🟡",        // BSC yellow
-  polygon: "🟣",    // Polygon purple
-  arbitrum: "🔷",   // Arbitrum blue diamond
-  avalanche: "🔺",  // Avalanche red triangle
-  optimism: "🔴",   // Optimism red
-  fantom: "👻",     // Fantom ghost
-  sui: "💧",        // Sui water drop
-  ton: "💎",        // TON diamond
-};
+// Solana chain icon (Unicode approximation for Telegram text)
+const SOLANA_ICON = "◎";
 
-// Get chain icon from chainId or pair data
+// Get chain icon - Solana only for now
 export function getChainIcon(chainId?: string): string {
-  if (!chainId) return "◎"; // Default to Solana
-  const chain = chainId.toLowerCase();
-  return CHAIN_ICONS[chain] || "🔗";
+  return SOLANA_ICON;
 }
 
 // Escape special characters for Telegram HTML (per OpenClaw spec: parse_mode: "HTML")
