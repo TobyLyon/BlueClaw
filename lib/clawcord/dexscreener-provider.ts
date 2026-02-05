@@ -24,32 +24,109 @@ export class DexScreenerProvider {
     }
 
     try {
-      // DexScreener's token profiles endpoint for new Solana pairs
-      // Filter for Raydium pairs (where PumpFun tokens graduate to)
-      const response = await fetch(
-        `${DEXSCREENER_API}/latest/dex/pairs/solana?limit=${limit}`,
+      // Use DexScreener's token boosts endpoint to get recently active tokens
+      // Then fetch their pair data
+      const boostsResponse = await fetch(
+        `${DEXSCREENER_API}/token-boosts/top/v1`,
         {
           headers: {
             "Accept": "application/json",
-            "User-Agent": "ClawCord/1.0",
+            "User-Agent": "BlueClaw/1.0",
           },
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`DexScreener API error: ${response.status}`);
+      let allPairs: DexScreenerPair[] = [];
+
+      if (boostsResponse.ok) {
+        const boostsData = await boostsResponse.json();
+        // Filter for Solana tokens and get their addresses
+        const solanaTokens = (boostsData || [])
+          .filter((t: any) => t.chainId === "solana")
+          .slice(0, Math.min(limit, 20))
+          .map((t: any) => t.tokenAddress);
+
+        if (solanaTokens.length > 0) {
+          // Fetch pair data for these tokens (batch in groups of 10)
+          for (let i = 0; i < solanaTokens.length; i += 10) {
+            const batch = solanaTokens.slice(i, i + 10);
+            const tokenAddresses = batch.join(",");
+            
+            const pairsResponse = await fetch(
+              `${DEXSCREENER_API}/latest/dex/tokens/${tokenAddresses}`,
+              {
+                headers: {
+                  "Accept": "application/json",
+                  "User-Agent": "BlueClaw/1.0",
+                },
+              }
+            );
+
+            if (pairsResponse.ok) {
+              const pairsData = await pairsResponse.json();
+              const pairs: DexScreenerPair[] = pairsData.pairs || [];
+              allPairs = allPairs.concat(pairs);
+            }
+          }
+        }
       }
 
-      const data = await response.json();
-      const pairs: DexScreenerPair[] = data.pairs || [];
+      // Also try the latest profiles endpoint as backup
+      if (allPairs.length < limit) {
+        const profilesResponse = await fetch(
+          `${DEXSCREENER_API}/token-profiles/latest/v1`,
+          {
+            headers: {
+              "Accept": "application/json",
+              "User-Agent": "BlueClaw/1.0",
+            },
+          }
+        );
 
-      // Filter for Raydium pairs (PumpFun graduates here)
-      const raydiumPairs = pairs.filter(
-        (pair: DexScreenerPair) => pair.dexId === "raydium"
-      );
+        if (profilesResponse.ok) {
+          const profilesData = await profilesResponse.json();
+          const solanaProfiles = (profilesData || [])
+            .filter((p: any) => p.chainId === "solana")
+            .slice(0, limit - allPairs.length);
 
-      this.cache.set(cacheKey, { data: raydiumPairs, timestamp: Date.now() });
-      return raydiumPairs;
+          for (const profile of solanaProfiles) {
+            try {
+              const pairRes = await fetch(
+                `${DEXSCREENER_API}/latest/dex/tokens/${profile.tokenAddress}`,
+                {
+                  headers: {
+                    "Accept": "application/json",
+                    "User-Agent": "BlueClaw/1.0",
+                  },
+                }
+              );
+              if (pairRes.ok) {
+                const pairData = await pairRes.json();
+                if (pairData.pairs?.length > 0) {
+                  allPairs.push(pairData.pairs[0]);
+                }
+              }
+            } catch {
+              // Skip failed individual fetches
+            }
+          }
+        }
+      }
+
+      // Filter for Raydium pairs (PumpFun graduates here) and dedupe
+      const seenMints = new Set<string>();
+      const raydiumPairs = allPairs.filter((pair: DexScreenerPair) => {
+        if (pair.dexId !== "raydium" || pair.chainId !== "solana") return false;
+        if (seenMints.has(pair.baseToken.address)) return false;
+        seenMints.add(pair.baseToken.address);
+        return true;
+      });
+
+      // Sort by creation time (newest first)
+      raydiumPairs.sort((a, b) => (b.pairCreatedAt || 0) - (a.pairCreatedAt || 0));
+
+      this.cache.set(cacheKey, { data: raydiumPairs.slice(0, limit), timestamp: Date.now() });
+      return raydiumPairs.slice(0, limit);
     } catch (error) {
       console.error("Failed to fetch DexScreener pairs:", error);
       return [];
@@ -158,29 +235,28 @@ export class GraduationWatcher {
   async scanForGraduations(
     filter: GraduationFilter
   ): Promise<GraduationCandidate[]> {
+    console.log("[GraduationWatcher] Starting scan...");
     const pairs = await this.dexProvider.getLatestPumpFunGraduations(100);
+    console.log(`[GraduationWatcher] Got ${pairs.length} pairs from DexScreener`);
+    
     const candidates: GraduationCandidate[] = [];
     const helius = getHeliusProvider();
 
     for (const pair of pairs) {
-      // Skip if we've already seen this token
-      if (this.seenMints.has(pair.baseToken.address)) {
-        continue;
-      }
-
       const metrics = this.dexProvider.pairToMetrics(pair);
       
-      // Enrich metrics with Helius holder data
+      // Enrich metrics with Helius holder data (non-blocking)
       try {
         const [holderCount, topHolderConcentration] = await Promise.all([
-          helius.getTokenHolderCount(pair.baseToken.address),
-          helius.getTopHolderConcentration(pair.baseToken.address, 10),
+          helius.getTokenHolderCount(pair.baseToken.address).catch(() => 0),
+          helius.getTopHolderConcentration(pair.baseToken.address, 10).catch(() => 0),
         ]);
-        metrics.holders = holderCount;
-        metrics.topHolderConcentration = topHolderConcentration;
+        metrics.holders = holderCount || 100; // Default to 100 if fetch fails
+        metrics.topHolderConcentration = topHolderConcentration || 25;
       } catch (error) {
         // Continue with default values if Helius fails
-        console.warn(`Failed to fetch Helius data for ${pair.baseToken.symbol}:`, error);
+        metrics.holders = 100;
+        metrics.topHolderConcentration = 25;
       }
 
       const { passes, failures } = this.applyFilter(pair, metrics, filter);

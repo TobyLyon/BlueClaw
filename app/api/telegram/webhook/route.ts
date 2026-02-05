@@ -226,16 +226,29 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
 
     case "scan": {
       const config = await getOrCreateChatConfig({ chatId, userId });
-      await sendMessage(chatId, "🔍 Scanning...");
+      await sendMessage(chatId, "🔍 Scanning for graduations...");
       
-      const watcher = new GraduationWatcher();
-      const candidates = await watcher.scanForGraduations(DEFAULT_GRADUATION_FILTER);
-      const minScore = config.display?.minScore || 6.5;
-      const filtered = candidates.filter((c: any) => c.passesFilter && c.score >= minScore);
-      
-      await sendMessage(chatId, modules.formatScanResults(filtered, config.vibeMode), { parseMode: "HTML" });
-      
-      if (filtered.length > 0) {
+      try {
+        const watcher = new GraduationWatcher();
+        const candidates = await watcher.scanForGraduations(DEFAULT_GRADUATION_FILTER);
+        
+        if (candidates.length === 0) {
+          await sendMessage(chatId, "📊 No tokens found. DexScreener may be rate-limited or no new graduations available.\n\nTry again in a minute.");
+          break;
+        }
+        
+        // Show all candidates sorted by score, not just filtered ones
+        const minScore = config.display?.minScore || 5;
+        const sorted = candidates.sort((a: any, b: any) => b.score - a.score);
+        const filtered = sorted.filter((c: any) => c.score >= minScore).slice(0, 10);
+        
+        if (filtered.length === 0) {
+          await sendMessage(chatId, `📊 Found ${candidates.length} tokens but none scored above ${minScore}/10.\n\nTop token: ${candidates[0]?.graduation?.symbol || "N/A"} (${candidates[0]?.score?.toFixed(1) || "?"}/10)`);
+          break;
+        }
+        
+        await sendMessage(chatId, modules.formatScanResults(filtered, config.vibeMode), { parseMode: "HTML" });
+        
         const top = filtered[0];
         const signalKeyboard = modules.generateSignalKeyboard(
           top.graduation.mint,
@@ -247,6 +260,9 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
           parseMode: "HTML",
           inlineKeyboard: modules.signalKeyboardToTelegram(signalKeyboard),
         });
+      } catch (error) {
+        console.error("Scan error:", error);
+        await sendMessage(chatId, "❌ Error scanning. Please try again in a moment.");
       }
       break;
     }
@@ -463,22 +479,31 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
       
       try {
         const watcher = new GraduationWatcher();
+        // More relaxed filter for fresh - just check age
         const freshFilter = {
-          ...DEFAULT_GRADUATION_FILTER,
-          maxAgeMinutes: 15, // Only last 15 minutes
+          minLiquidity: 5000,
+          minVolume5m: 100,
+          minHolders: 10,
+          maxAgeMinutes: 60, // Last hour for better results
+          excludeRuggedDeployers: false,
         };
         
         const graduations = await watcher.scanForGraduations(freshFilter);
         const config = await getOrCreateChatConfig({ chatId });
         
         if (graduations.length === 0) {
-          await sendMessage(chatId, "🆕 No fresh graduations in the last 15 minutes.\n\nTry `/scan` for broader results.");
-          return;
+          await sendMessage(chatId, "🆕 No graduations found at the moment.\n\nDexScreener may be rate-limited. Try again in a minute.");
+          break;
         }
         
+        // Sort by creation time (newest first)
+        const sorted = graduations.sort((a: any, b: any) => 
+          (b.pair.pairCreatedAt || 0) - (a.pair.pairCreatedAt || 0)
+        );
+        
         // Format fresh graduations
-        const lines = [`🆕 <b>Fresh Grads</b> (15m)\n`];
-        const top = graduations.slice(0, 5);
+        const lines = [`🆕 <b>Recent Tokens</b>\n`];
+        const top = sorted.slice(0, 5);
         
         for (let i = 0; i < top.length; i++) {
           const g = top[i];
@@ -492,16 +517,21 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
         }
         
         // Show top result with inline keyboard
-        const topMint = top[0].graduation.mint;
-        const signals = await import("../../../../lib/clawcord/signals-analyzer");
+        const topGrad = top[0];
+        const signalKeyboard = modules.generateSignalKeyboard(
+          topGrad.graduation.mint,
+          topGrad.pair.url,
+          topGrad.pair.info?.socials,
+          topGrad.pair.info?.websites
+        );
         
         await sendMessage(chatId, lines.join("\n"), {
           parseMode: "HTML",
-          inlineKeyboard: signals.generateSignalKeyboard(topMint, "whale"),
+          inlineKeyboard: modules.signalKeyboardToTelegram(signalKeyboard),
         });
       } catch (error) {
         console.error("Fresh scan error:", error);
-        await sendMessage(chatId, "❌ Error scanning for graduations. Please try again.");
+        await sendMessage(chatId, "❌ Error scanning. Please try again in a moment.");
       }
       break;
     }
