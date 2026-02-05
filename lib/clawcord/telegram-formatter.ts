@@ -253,9 +253,15 @@ export function formatCompactSignalCard(
   const { graduation, pair, score } = candidate;
   const priceChange = pair.priceChange?.m5 || 0;
   const symbol = escapeHtml(graduation.symbol);
-  const mcap = formatNum(pair.marketCap || 0);
-  const liq = formatNum(pair.liquidity?.usd || 0);
+  const mcapRaw = pair.marketCap || 0;
+  const liqRaw = pair.liquidity?.usd || 0;
+  const mcap = formatNum(mcapRaw);
+  const liq = formatNum(liqRaw);
   const vol = formatNum(pair.volume?.m5 || 0);
+  
+  // Calculate liquidity ratio - critical for PumpFun tokens
+  const liqRatio = mcapRaw > 0 ? ((liqRaw / mcapRaw) * 100) : 0;
+  const liqRatioEmoji = liqRatio >= 15 ? "✅" : liqRatio >= 10 ? "⚠️" : "🚨";
   
   // Emoji based on score
   const scoreEmoji = score >= 8 ? "🔥" : score >= 7 ? "✨" : score >= 6 ? "👀" : "📊";
@@ -266,7 +272,7 @@ export function formatCompactSignalCard(
     `${scoreEmoji} <b>$${symbol}</b> ${changeEmoji}`,
     ``,
     `💰 $${mcap} MCap · 💧 $${liq} Liq`,
-    `📊 ${priceChange > 0 ? "+" : ""}${priceChange.toFixed(1)}% · Vol $${vol}`,
+    `${liqRatioEmoji} Liq/MC: ${liqRatio.toFixed(1)}% · ${priceChange > 0 ? "+" : ""}${priceChange.toFixed(1)}%`,
     `⭐ <b>${score.toFixed(1)}/10</b>`,
     ``,
     `<code>${graduation.mint}</code>`,
@@ -389,16 +395,22 @@ export function formatScanResults(
   const lines = [header, ``];
 
   candidates.slice(0, 5).forEach((c, i) => {
-    const mcap = formatNum(c.pair.marketCap || 0);
-    const liq = formatNum(c.pair.liquidity?.usd || 0);
+    const mcapRaw = c.pair.marketCap || 0;
+    const liqRaw = c.pair.liquidity?.usd || 0;
+    const mcap = formatNum(mcapRaw);
+    const liq = formatNum(liqRaw);
     const change = c.pair.priceChange?.m5 || 0;
     const symbol = escapeHtml(c.graduation.symbol);
+    
+    // Calculate liquidity ratio
+    const liqRatio = mcapRaw > 0 ? ((liqRaw / mcapRaw) * 100) : 0;
+    const liqEmoji = liqRatio >= 15 ? "✅" : liqRatio >= 10 ? "⚠️" : "🚨";
     
     lines.push(
       `<b>${i + 1}. $${symbol}</b> — ${c.score.toFixed(1)}/10`
     );
     lines.push(
-      `   MCap: $${mcap} | Liq: $${liq} | ${change > 0 ? "+" : ""}${change.toFixed(0)}%`
+      `   $${mcap} MC | $${liq} Liq | ${liqEmoji}${liqRatio.toFixed(0)}%`
     );
     lines.push(``);
   });

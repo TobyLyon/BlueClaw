@@ -338,6 +338,19 @@ export class GraduationWatcher {
       );
     }
 
+    // CRITICAL: Check liquidity/mcap ratio - PumpFun tokens graduate at ~17% ratio
+    // Legitimate tokens maintain 10-30% ratio. Below 8% is a major red flag (scam/rug)
+    const mcap = pair.marketCap || 0;
+    const liq = pair.liquidity?.usd || 0;
+    if (mcap > 0 && liq > 0) {
+      const liqRatio = (liq / mcap) * 100;
+      if (liqRatio < 8) {
+        failures.push(
+          `Liq/MCap ratio ${liqRatio.toFixed(1)}% < 8% (scam risk - PumpFun grads start at ~17%)`
+        );
+      }
+    }
+
     return {
       passes: failures.length === 0,
       failures,
@@ -378,6 +391,18 @@ export class GraduationWatcher {
     const mcap = pair.marketCap || 0;
     if (mcap > 100000 && mcap < 5000000) score += 0.5;
     else if (mcap > 10000000) score -= 0.5;
+
+    // CRITICAL: Liquidity to Market Cap ratio
+    // PumpFun tokens graduate at ~$69K mcap with ~$12K liq = ~17% ratio
+    // Healthy tokens: 15-30% ratio, Acceptable: 10-15%, Scam risk: <8%
+    if (mcap > 0 && liq > 0) {
+      const liqRatio = (liq / mcap) * 100;
+      if (liqRatio >= 20) score += 2;        // Excellent liquidity backing
+      else if (liqRatio >= 15) score += 1.5; // Healthy ratio
+      else if (liqRatio >= 10) score += 0.5; // Acceptable
+      else if (liqRatio < 5) score -= 3;     // Major scam risk
+      else if (liqRatio < 8) score -= 2;     // High scam risk
+    }
 
     // Holder distribution (from Helius)
     const holders = metrics.holders;
