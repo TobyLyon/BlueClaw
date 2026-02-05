@@ -130,17 +130,17 @@ export default function BlueClawLanding() {
             {/* Contract Address - Click to Copy */}
             <button
               onClick={() => {
-                navigator.clipboard.writeText("PLACEHOLDER_CONTRACT_ADDRESS");
+                navigator.clipboard.writeText("FoVZ7StVnVysAkXHcrU5xrawSqgXacJjQ7FFTsscpump");
                 const btn = document.getElementById("copy-ca-btn");
                 if (btn) {
                   btn.textContent = "Copied!";
-                  setTimeout(() => { btn.textContent = "CA: PLAC...LDER"; }, 2000);
+                  setTimeout(() => { btn.textContent = "CA: FoVZ...pump"; }, 2000);
                 }
               }}
               id="copy-ca-btn"
               className="px-3 py-1.5 rounded-lg text-xs font-mono text-sky-300 bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 hover:border-sky-500/30 transition-all cursor-pointer"
             >
-              CA: PLAC...LDER
+              CA: FoVZ...pump
             </button>
             
             {/* Twitter/X Link */}
