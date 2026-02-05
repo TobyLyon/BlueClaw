@@ -483,7 +483,7 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
         const freshFilter = {
           minLiquidity: 5000,
           minVolume5m: 100,
-          minHolders: 10,
+          minHolders: 100,
           maxAgeMinutes: 60, // Last hour for better results
           excludeRuggedDeployers: false,
         };
