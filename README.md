@@ -1,23 +1,23 @@
 <div align="center">
 
-![ClawCord Banner](public/banner-optimized.gif)
+![BlueClaw Banner](public/BlueClawvideo-ezgif.gif)
 
-# 🦀 ClawCord
+# 🦞 BlueClaw
 
-### Policy-Driven Signal Caller for Solana Tokens
+### Whale Tracking & Signal Caller for Solana
 
-[![Discord](https://img.shields.io/badge/Discord-Add%20Bot-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://clawcord.vercel.app/api/discord/invite)
-[![Twitter](https://img.shields.io/badge/Twitter-@ClawCordSOL-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://x.com/ClawCordSOL)
-[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+[![Telegram](https://img.shields.io/badge/Telegram-Add%20Bot-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/BlueClawCallsBot)
+[![Twitter](https://img.shields.io/badge/Twitter-@BlueClaw-1DA1F2?style=for-the-badge&logo=x&logoColor=white)](https://twitter.com/BlueClaw)
+[![Website](https://img.shields.io/badge/Website-blueclawcalls.xyz-0ea5e9?style=for-the-badge&logo=vercel&logoColor=white)](https://www.blueclawcalls.xyz)
 
-[![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Solana](https://img.shields.io/badge/Solana-Mainnet-9945FF?style=flat-square&logo=solana)](https://solana.com/)
-[![Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=flat-square&logo=vercel)](https://vercel.com/)
+[![Telegram Bot](https://img.shields.io/badge/Bot-Telegram-26A5E4?style=flat-square&logo=telegram)](https://t.me/BlueClawCallsBot)
 
-**Automate your Discord calls with real-time PumpFun graduation tracking.**
+**Real-time PumpFun graduation tracking & whale signals — delivered to Telegram.**
 
-[🚀 Add to Discord](https://clawcord.vercel.app/api/discord/invite) · [📖 Documentation](#documentation) · [🐛 Report Bug](https://github.com/JermWang/ClawCord/issues)
+[🚀 Add to Telegram](https://t.me/BlueClawCallsBot) · [📖 Documentation](https://www.blueclawcalls.xyz/docs) · [🌐 Website](https://www.blueclawcalls.xyz)
 
 </div>
 
@@ -27,112 +27,62 @@
 
 | Feature | Description |
 |---------|-------------|
-| 🎓 **PumpFun Graduation Tracking** | Monitors tokens graduating from PumpFun to Raydium/PumpSwap in real-time |
+| 🎓 **PumpFun Graduation Tracking** | Monitors tokens graduating from PumpFun to Raydium in real-time |
+| 🐋 **Whale Analysis** | Track whale wallets, accumulation patterns, and top holder concentration |
 | 📊 **Multi-Source Analytics** | Combines DexScreener + Helius data for comprehensive token analysis |
-| 🛡️ **Policy Engine** | Configurable thresholds for liquidity, volume, holders, and more |
-| 🤖 **Discord Autopost** | Automatically posts high-scoring tokens to your signal channels |
-| 📈 **Holder Analysis** | Detects whale concentration and tracks holder growth |
+| 🛡️ **Scam Detection** | Liquidity ratio, buy/sell ratio, and age-vs-mcap filters to detect rugs |
+| 🤖 **Telegram Autopost** | Automatically posts high-scoring tokens to your group chats |
 | ⚡ **Real-time Scoring** | 0-10 confidence scores based on multiple on-chain signals |
 
 ---
 
 ## 🚀 Quick Start
 
-### Add to Discord
+### Add to Telegram
 
-1. Click **[Add to Discord](https://clawcord.vercel.app/api/discord/invite)**
-2. Select your server and authorize
-3. Run `/clawcord install` in any channel
-4. Configure your policy with `/clawcord policy`
-5. Enable autopost with `/clawcord autopost enabled:true`
+1. Click **[Add to Telegram](https://t.me/BlueClawCallsBot)** or search `@BlueClawCallsBot`
+2. Start a chat or add to your group
+3. Make the bot an admin (for group posting)
+4. Run `/scan` to find fresh graduations
+5. Run `/alpha` for the top-scoring token
+6. Enable autopost with `/autopost on`
 
-### Self-Hosting
-
-```bash
-# Clone the repository
-git clone https://github.com/JermWang/ClawCord.git
-cd ClawCord
-
-# Install dependencies
-pnpm install
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your Discord and Helius credentials
-
-# Run development server
-pnpm dev
-```
-
----
-
-## 📋 Commands
+### Commands
 
 | Command | Description |
 |---------|-------------|
-| `/clawcord scan` | Scan for newly graduated PumpFun tokens |
-| `/clawcord call $TICKER` | Generate a full analysis call card |
-| `/clawcord policy [preset]` | View or change active policy |
-| `/clawcord autopost enabled:true` | Enable automatic posting |
-| `/clawcord watch $TOKEN` | Add token to watchlist |
-| `/clawcord logs [limit]` | View recent calls |
+| `/scan` | Scan for newly graduated PumpFun tokens |
+| `/fresh` | Find the freshest graduations (last hour) |
+| `/alpha` | Get the highest-scoring token right now |
+| `/whale <mint>` | Analyze whale activity for a token |
+| `/holders <mint>` | Check holder distribution |
+| `/momentum <mint>` | Analyze price & volume momentum |
+| `/autopost on/off` | Enable/disable automatic posting |
+| `/config` | View current configuration |
+| `/help` | Show all available commands |
 
 ---
 
-## ⚙️ Configuration
+## Scam Detection
 
-### Environment Variables
+BlueClaw uses **PumpFun-specific scam detection** based on bonding curve mechanics:
 
-```env
-# Discord
-DISCORD_APPLICATION_ID=your_app_id
-DISCORD_BOT_TOKEN=your_bot_token
-DISCORD_PUBLIC_KEY=your_public_key
-
-# Data Providers
-HELIUS_API_KEY=your_helius_key
-DEXSCREENER_BASE_URL=https://api.dexscreener.com
-```
-
-### Default Graduation Filter
-
-| Threshold | Value | Description |
-|-----------|-------|-------------|
-| Min Liquidity | $12,000 | Post-graduation baseline |
-| Min Volume (5m) | $1,000 | Active trading indicator |
-| Min Holders | 75 | Healthy distribution |
-| Max Age | 45 min | Catch early but stable |
-| Max Top 10 Concentration | 50% | Whale risk limit |
+| Filter | Threshold | Why It Matters |
+|--------|-----------|----------------|
+| **Liq/MCap Ratio** | ≥10% | PumpFun grads start at ~17%. Below 8% = likely rug |
+| **Buy/Sell Ratio** | ≥0.5 | Filters active dumps in progress |
+| **Age vs MCap** | Dynamic | Flags suspicious growth (>$15k/min in first 30m) |
+| **Holder Count** | ≥75 | Ensures healthy distribution |
+| **Top 10 Concentration** | <50% | Limits whale manipulation risk |
 
 ---
 
-## 🏗️ Architecture
+## Scoring System
 
-```
-ClawCord
-├── app/                    # Next.js App Router
-│   ├── api/
-│   │   ├── discord/        # Discord interactions & OAuth
-│   │   ├── graduations/    # Graduation scanning endpoint
-│   │   └── autopost/       # Autopost service control
-│   └── page.tsx            # Landing page
-├── lib/clawcord/           # Core logic
-│   ├── dexscreener-provider.ts   # DexScreener API
-│   ├── data-providers.ts         # Helius integration
-│   ├── autopost-service.ts       # Discord autoposting
-│   ├── scoring.ts                # Token scoring engine
-│   └── policies.ts               # Policy presets
-└── components/             # React components
-```
+BlueClaw uses a **0-10 scoring system** based on:
 
----
-
-## 📊 Scoring System
-
-ClawCord uses a **0-10 scoring system** based on:
-
+- **Liquidity Ratio** — Critical PumpFun metric (liq/mcap %)
 - **Volume Momentum** — 5m volume vs 1h average
-- **Liquidity Health** — USD liquidity depth
 - **Buy/Sell Ratio** — Transaction sentiment
 - **Holder Distribution** — Count + concentration
 - **Price Action** — Short-term momentum
@@ -140,37 +90,58 @@ ClawCord uses a **0-10 scoring system** based on:
 
 ---
 
-## 🤝 Contributing
+## Architecture
 
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) first.
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing`)
-5. Open a Pull Request
+```
+BlueClaw
+├── app/                    # Next.js App Router
+│   ├── api/
+│   │   ├── telegram/       # Telegram webhook & commands
+│   │   └── autopost/       # Autopost service control
+│   ├── docs/               # Documentation page
+│   └── page.tsx            # Landing page
+├── lib/clawcord/           # Core logic
+│   ├── dexscreener-provider.ts   # DexScreener API + Graduation Watcher
+│   ├── data-providers.ts         # Helius integration
+│   ├── telegram-formatter.ts     # Message formatting
+│   ├── scoring.ts                # Token scoring engine
+│   └── autopost-service.ts       # Autoposting
+└── components/             # React components
+```
 
 ---
 
-## 📜 License
+## Environment Variables
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+```env
+# Telegram
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_WEBHOOK_SECRET=your_webhook_secret
+
+# Data Providers
+HELIUS_API_KEY=your_helius_key
+DEXSCREENER_BASE_URL=https://api.dexscreener.com
+
+# Database
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_anon_key
+```
 
 ---
 
-## 🔗 Links
+## Links
 
-- **Website**: [clawcord.vercel.app](https://clawcord.vercel.app)
-- **Twitter**: [@ClawCordSOL](https://x.com/ClawCordSOL)
-- **Discord**: [Add Bot](https://clawcord.vercel.app/api/discord/invite)
-- **GitHub**: [JermWang/ClawCord](https://github.com/JermWang/ClawCord)
+- **Website**: [blueclawcalls.xyz](https://www.blueclawcalls.xyz)
+- **Telegram Bot**: [@BlueClawCallsBot](https://t.me/BlueClawCallsBot)
+- **Twitter**: [@BlueClaw](https://twitter.com/BlueClaw)
+- **Documentation**: [blueclawcalls.xyz/docs](https://www.blueclawcalls.xyz/docs)
 
 ---
 
 <div align="center">
 
-**Built with 🦀 by the ClawCord Team**
+**Built with 🦞 by the BlueClaw Team**
 
-*Disclaimer: ClawCord is a tool for signal tracking, not financial advice. Always DYOR.*
+*Disclaimer: BlueClaw is a tool for signal tracking, not financial advice. Always DYOR.*
 
 </div>
