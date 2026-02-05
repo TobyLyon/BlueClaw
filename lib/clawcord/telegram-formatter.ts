@@ -6,6 +6,28 @@ import type { TelegramChatConfig, InlineKeyboardRow, InlineButton } from "./tele
 
 type VibeMode = "aggressive" | "neutral" | "cautious";
 
+// Chain icons mapping
+const CHAIN_ICONS: Record<string, string> = {
+  solana: "◎",      // Solana logo-like circle
+  ethereum: "Ξ",    // ETH symbol
+  base: "🔵",       // Base blue
+  bsc: "🟡",        // BSC yellow
+  polygon: "🟣",    // Polygon purple
+  arbitrum: "🔷",   // Arbitrum blue diamond
+  avalanche: "🔺",  // Avalanche red triangle
+  optimism: "🔴",   // Optimism red
+  fantom: "👻",     // Fantom ghost
+  sui: "💧",        // Sui water drop
+  ton: "💎",        // TON diamond
+};
+
+// Get chain icon from chainId or pair data
+export function getChainIcon(chainId?: string): string {
+  if (!chainId) return "◎"; // Default to Solana
+  const chain = chainId.toLowerCase();
+  return CHAIN_ICONS[chain] || "🔗";
+}
+
 // Escape special characters for Telegram HTML (per OpenClaw spec: parse_mode: "HTML")
 function escapeHtml(text: string): string {
   return text
@@ -257,7 +279,7 @@ export function formatCompactSignalCard(
   const liqRaw = pair.liquidity?.usd || 0;
   const mcap = formatNum(mcapRaw);
   const liq = formatNum(liqRaw);
-  const vol = formatNum(pair.volume?.m5 || 0);
+  const chainIcon = getChainIcon(pair.chainId);
   
   // Calculate liquidity ratio - critical for PumpFun tokens
   const liqRatio = mcapRaw > 0 ? ((liqRaw / mcapRaw) * 100) : 0;
@@ -269,7 +291,7 @@ export function formatCompactSignalCard(
   
   // Compact format - all key info in minimal lines
   const lines = [
-    `${scoreEmoji} <b>$${symbol}</b> ${changeEmoji}`,
+    `${scoreEmoji} ${chainIcon} <b>$${symbol}</b> ${changeEmoji}`,
     ``,
     `💰 $${mcap} MCap · 💧 $${liq} Liq`,
     `${liqRatioEmoji} Liq/MC: ${liqRatio.toFixed(1)}% · ${priceChange > 0 ? "+" : ""}${priceChange.toFixed(1)}%`,
@@ -399,15 +421,15 @@ export function formatScanResults(
     const liqRaw = c.pair.liquidity?.usd || 0;
     const mcap = formatNum(mcapRaw);
     const liq = formatNum(liqRaw);
-    const change = c.pair.priceChange?.m5 || 0;
     const symbol = escapeHtml(c.graduation.symbol);
+    const chainIcon = getChainIcon(c.pair.chainId);
     
     // Calculate liquidity ratio
     const liqRatio = mcapRaw > 0 ? ((liqRaw / mcapRaw) * 100) : 0;
     const liqEmoji = liqRatio >= 15 ? "✅" : liqRatio >= 10 ? "⚠️" : "🚨";
     
     lines.push(
-      `<b>${i + 1}. $${symbol}</b> — ${c.score.toFixed(1)}/10`
+      `<b>${i + 1}. ${chainIcon} $${symbol}</b> — ${c.score.toFixed(1)}/10`
     );
     lines.push(
       `   $${mcap} MC | $${liq} Liq | ${liqEmoji}${liqRatio.toFixed(0)}%`
@@ -472,6 +494,7 @@ export function formatDetailedTokenCard(
   const liq = formatNum(liqRaw);
   const vol5m = formatNum(pair.volume?.m5 || 0);
   const vol1h = formatNum(pair.volume?.h1 || 0);
+  const chainIcon = getChainIcon(pair.chainId);
   
   // Calculate liquidity ratio
   const liqRatio = mcapRaw > 0 ? ((liqRaw / mcapRaw) * 100) : 0;
@@ -487,7 +510,7 @@ export function formatDetailedTokenCard(
   const changeEmoji = priceChange > 10 ? "🚀" : priceChange > 0 ? "📈" : priceChange < -10 ? "📉" : "";
   
   const lines = [
-    `${scoreEmoji} <b>$${symbol}</b> ${changeEmoji}`,
+    `${scoreEmoji} ${chainIcon} <b>$${symbol}</b> ${changeEmoji}`,
     ``,
     `💰 <b>$${mcap}</b> MCap · 💧 <b>$${liq}</b> Liq`,
     `${liqRatioEmoji} Liq/MC: <b>${liqRatio.toFixed(1)}%</b>`,
