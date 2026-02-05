@@ -11,6 +11,12 @@ const DEXSCREENER_API = process.env.DEXSCREENER_BASE_URL || "https://api.dexscre
 const PUMPFUN_PROGRAM_ID = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
 const RAYDIUM_V4 = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8";
 
+// PumpFun launched PumpSwap in 2025 — graduations no longer go exclusively to Raydium
+const GRADUATION_DEX_IDS = new Set(["raydium", "pumpswap", "pump-swap", "pumpfun"]);
+function isGraduationDex(dexId: string): boolean {
+  return GRADUATION_DEX_IDS.has(dexId.toLowerCase());
+}
+
 export class DexScreenerProvider {
   private cache: Map<string, { data: DexScreenerPair[]; timestamp: number }> = new Map();
   private cacheTTL = 30_000; // 30 seconds
@@ -115,20 +121,20 @@ export class DexScreenerProvider {
         }
       }
 
-      // Filter for Raydium pairs (PumpFun graduates here) and dedupe
+      // Filter for graduation DEX pairs (Raydium + PumpSwap) and dedupe
       const seenMints = new Set<string>();
-      const raydiumPairs = allPairs.filter((pair: DexScreenerPair) => {
-        if (pair.dexId !== "raydium" || pair.chainId !== "solana") return false;
+      const graduationPairs = allPairs.filter((pair: DexScreenerPair) => {
+        if (!isGraduationDex(pair.dexId) || pair.chainId !== "solana") return false;
         if (seenMints.has(pair.baseToken.address)) return false;
         seenMints.add(pair.baseToken.address);
         return true;
       });
 
       // Sort by creation time (newest first)
-      raydiumPairs.sort((a, b) => (b.pairCreatedAt || 0) - (a.pairCreatedAt || 0));
+      graduationPairs.sort((a, b) => (b.pairCreatedAt || 0) - (a.pairCreatedAt || 0));
 
-      this.cache.set(cacheKey, { data: raydiumPairs.slice(0, limit), timestamp: Date.now() });
-      return raydiumPairs.slice(0, limit);
+      this.cache.set(cacheKey, { data: graduationPairs.slice(0, limit), timestamp: Date.now() });
+      return graduationPairs.slice(0, limit);
     } catch (error) {
       console.error("Failed to fetch DexScreener pairs:", error);
       return [];
@@ -163,17 +169,24 @@ export class DexScreenerProvider {
       const data = await response.json();
       const pairs: DexScreenerPair[] = data.pairs || [];
 
-      // Filter for Raydium pairs (PumpFun graduates) and dedupe
+      // Log DEX distribution for debugging
+      const dexCounts: Record<string, number> = {};
+      for (const p of pairs) { dexCounts[p.dexId] = (dexCounts[p.dexId] || 0) + 1; }
+      console.log(`[DexScreener] Latest pairs: ${pairs.length} total, DEX breakdown:`, dexCounts);
+
+      // Filter for graduation DEX pairs (Raydium + PumpSwap) and dedupe
       const seenMints = new Set<string>();
-      const raydiumPairs = pairs.filter((pair: DexScreenerPair) => {
-        if (pair.dexId !== "raydium" || pair.chainId !== "solana") return false;
+      const graduationPairs = pairs.filter((pair: DexScreenerPair) => {
+        if (!isGraduationDex(pair.dexId) || pair.chainId !== "solana") return false;
         if (seenMints.has(pair.baseToken.address)) return false;
         seenMints.add(pair.baseToken.address);
         return true;
       });
 
+      console.log(`[DexScreener] After graduation DEX filter: ${graduationPairs.length} pairs`);
+
       // Already sorted newest first by DexScreener
-      const result = raydiumPairs.slice(0, limit);
+      const result = graduationPairs.slice(0, limit);
       this.cache.set(cacheKey, { data: result, timestamp: Date.now() });
       return result;
     } catch (error) {
@@ -201,12 +214,12 @@ export class DexScreenerProvider {
       const data = await response.json();
       const pairs: DexScreenerPair[] = data.pairs || [];
 
-      // Return the most liquid Raydium pair
-      const raydiumPairs = pairs
-        .filter((p) => p.dexId === "raydium" && p.chainId === "solana")
+      // Return the most liquid graduation pair (Raydium or PumpSwap)
+      const gradPairs = pairs
+        .filter((p) => isGraduationDex(p.dexId) && p.chainId === "solana")
         .sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0));
 
-      return raydiumPairs[0] || null;
+      return gradPairs[0] || null;
     } catch (error) {
       console.error(`Failed to fetch pair for ${mint}:`, error);
       return null;
@@ -233,7 +246,7 @@ export class DexScreenerProvider {
       const pairs: DexScreenerPair[] = data.pairs || [];
 
       return pairs.filter(
-        (p) => p.chainId === "solana" && p.dexId === "raydium"
+        (p) => p.chainId === "solana" && isGraduationDex(p.dexId)
       );
     } catch (error) {
       console.error(`Failed to search tokens:`, error);
@@ -354,11 +367,14 @@ export class GraduationWatcher {
     
     const candidates: GraduationCandidate[] = [];
     const helius = getHeliusProvider();
+    let skippedAge = 0;
+    let skippedFilter = 0;
 
     for (const pair of pairs) {
       // Pre-filter by age before expensive Helius calls
       const ageMinutes = (Date.now() - (pair.pairCreatedAt || 0)) / (1000 * 60);
       if (ageMinutes > filter.maxAgeMinutes) {
+        skippedAge++;
         continue; // Skip old pairs immediately
       }
 
@@ -403,8 +419,13 @@ export class GraduationWatcher {
           passesFilter: true,
           filterFailures: [],
         });
+      } else {
+        skippedFilter++;
+        console.log(`[FRESH] Rejected $${pair.baseToken.symbol} (${pair.dexId}, ${ageMinutes.toFixed(0)}m): ${failures.join(", ")}`);
       }
     }
+
+    console.log(`[FRESH] Results: ${candidates.length} passed, ${skippedAge} too old, ${skippedFilter} failed filter`);
 
     // Sort by creation time (newest first)
     return candidates.sort((a, b) => 
