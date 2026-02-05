@@ -158,7 +158,7 @@ export default function BlueClawLanding() {
               href="https://t.me/BlueClawCallsBot"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-sky-500 hover:bg-sky-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              className="hidden md:inline-flex items-center gap-2 bg-sky-500 hover:bg-sky-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
             >
               <Send className="w-4 h-4" />
               Open in Telegram
