@@ -133,6 +133,53 @@ export class DexScreenerProvider {
     }
   }
 
+  // Fetch genuinely new pairs from DexScreener's latest pairs endpoint
+  async getLatestSolanaPairs(limit = 50): Promise<DexScreenerPair[]> {
+    const cacheKey = `latest-solana-pairs`;
+    const cached = this.cache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
+      return cached.data;
+    }
+
+    try {
+      const response = await fetch(
+        `${DEXSCREENER_API}/latest/dex/pairs/solana`,
+        {
+          headers: {
+            "Accept": "application/json",
+            "User-Agent": "BlueClaw/1.0",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error(`[DexScreener] Latest pairs returned ${response.status}`);
+        return [];
+      }
+
+      const data = await response.json();
+      const pairs: DexScreenerPair[] = data.pairs || [];
+
+      // Filter for Raydium pairs (PumpFun graduates) and dedupe
+      const seenMints = new Set<string>();
+      const raydiumPairs = pairs.filter((pair: DexScreenerPair) => {
+        if (pair.dexId !== "raydium" || pair.chainId !== "solana") return false;
+        if (seenMints.has(pair.baseToken.address)) return false;
+        seenMints.add(pair.baseToken.address);
+        return true;
+      });
+
+      // Already sorted newest first by DexScreener
+      const result = raydiumPairs.slice(0, limit);
+      this.cache.set(cacheKey, { data: result, timestamp: Date.now() });
+      return result;
+    } catch (error) {
+      console.error("Failed to fetch latest Solana pairs:", error);
+      return [];
+    }
+  }
+
   async getPairByMint(mint: string): Promise<DexScreenerPair | null> {
     try {
       const response = await fetch(
@@ -293,6 +340,74 @@ export class GraduationWatcher {
 
     // Sort by score descending
     return candidates.sort((a, b) => b.score - a.score);
+  }
+
+  // Scan specifically for fresh/new pairs using the latest pairs endpoint
+  async scanFreshGraduations(
+    filter: GraduationFilter
+  ): Promise<GraduationCandidate[]> {
+    console.log("[GraduationWatcher] Starting FRESH scan (latest pairs endpoint)...");
+    const pairs = await this.dexProvider.getLatestSolanaPairs(50);
+    console.log(`[GraduationWatcher] Got ${pairs.length} latest Solana pairs`);
+    
+    const candidates: GraduationCandidate[] = [];
+    const helius = getHeliusProvider();
+
+    for (const pair of pairs) {
+      // Pre-filter by age before expensive Helius calls
+      const ageMinutes = (Date.now() - (pair.pairCreatedAt || 0)) / (1000 * 60);
+      if (ageMinutes > filter.maxAgeMinutes) {
+        continue; // Skip old pairs immediately
+      }
+
+      const metrics = this.dexProvider.pairToMetrics(pair);
+      
+      try {
+        const [holderCount, topHolderConcentration] = await Promise.all([
+          helius.getTokenHolderCount(pair.baseToken.address).catch(() => 0),
+          helius.getTopHolderConcentration(pair.baseToken.address, 10).catch(() => 0),
+        ]);
+        metrics.holders = holderCount || 100;
+        metrics.topHolderConcentration = topHolderConcentration || 25;
+      } catch {
+        metrics.holders = 100;
+        metrics.topHolderConcentration = 25;
+      }
+
+      const { passes, failures } = this.applyFilter(pair, metrics, filter);
+
+      const graduation: PumpFunGraduation = {
+        mint: pair.baseToken.address,
+        symbol: pair.baseToken.symbol,
+        name: pair.baseToken.name,
+        graduatedAt: new Date(pair.pairCreatedAt),
+        bondingCurveAddress: "",
+        raydiumPairAddress: pair.pairAddress,
+        initialLiquidity: pair.liquidity?.usd || 0,
+        initialMarketCap: pair.marketCap || 0,
+        creatorAddress: "",
+        imageUrl: pair.info?.imageUrl,
+      };
+
+      const score = this.calculateScore(pair, metrics);
+
+      // Only include tokens that pass the filter for fresh scans
+      if (passes) {
+        candidates.push({
+          graduation,
+          pair,
+          metrics,
+          score,
+          passesFilter: true,
+          filterFailures: [],
+        });
+      }
+    }
+
+    // Sort by creation time (newest first)
+    return candidates.sort((a, b) => 
+      (b.pair.pairCreatedAt || 0) - (a.pair.pairCreatedAt || 0)
+    );
   }
 
   private applyFilter(

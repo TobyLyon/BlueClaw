@@ -511,31 +511,31 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
       
       try {
         const watcher = new GraduationWatcher();
-        // More relaxed filter for fresh - just check age
+        // Relaxed filter - focus on genuinely new tokens
         const freshFilter = {
           minLiquidity: 5000,
           minVolume5m: 100,
-          minHolders: 100,
-          maxAgeMinutes: 60, // Last hour for better results
+          minHolders: 10, // Low threshold for very new tokens
+          maxAgeMinutes: 60, // Last hour only
           excludeRuggedDeployers: false,
         };
         
-        const graduations = await watcher.scanForGraduations(freshFilter);
+        // Use the fresh-specific scanner that hits /latest/dex/pairs/solana
+        const graduations = await watcher.scanFreshGraduations(freshFilter);
         const config = await getOrCreateChatConfig({ chatId });
         
         if (graduations.length === 0) {
-          await sendMessage(chatId, "🆕 No graduations found at the moment.\n\nDexScreener may be rate-limited. Try again in a minute.");
+          await sendMessage(chatId, "🆕 No fresh graduations in the last hour.\n\nTokens must be <60 min old with minimum liquidity. Try again soon.");
           break;
         }
         
-        // Sort by creation time (newest first)
-        const sorted = graduations.sort((a: any, b: any) => 
-          (b.pair.pairCreatedAt || 0) - (a.pair.pairCreatedAt || 0)
-        );
+        const top = graduations.slice(0, 5);
+        
+        // Store for ticker callback
+        scanCache.set(chatId, { candidates: top, timestamp: Date.now() });
         
         // Format fresh graduations
-        const lines = [`🆕 <b>Recent Tokens</b>\n`];
-        const top = sorted.slice(0, 5);
+        const lines = [`🆕 <b>${top.length} Fresh Token${top.length > 1 ? "s" : ""}</b>\n`];
         
         for (let i = 0; i < top.length; i++) {
           const g = top[i];
@@ -543,23 +543,17 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
           const mcap = g.pair.marketCap ? `$${(g.pair.marketCap / 1000).toFixed(0)}K` : "N/A";
           const scoreEmoji = g.score >= 8 ? "🔥" : g.score >= 7 ? "✨" : "";
           
-          lines.push(`<b>${i + 1}. $${g.graduation.symbol}</b> — ${g.score.toFixed(1)}/10 ${scoreEmoji}`);
+          lines.push(`<b>${i + 1}. ◎ $${g.graduation.symbol}</b> — ${g.score.toFixed(1)}/10 ${scoreEmoji}`);
           lines.push(`   ${age}m old | ${mcap} MC`);
           lines.push(``);
         }
         
-        // Show top result with inline keyboard
-        const topGrad = top[0];
-        const signalKeyboard = modules.generateSignalKeyboard(
-          topGrad.graduation.mint,
-          topGrad.pair.url,
-          topGrad.pair.info?.socials,
-          topGrad.pair.info?.websites
-        );
+        // Add clickable ticker buttons
+        const tickerKeyboard = modules.generateTickerKeyboard(top);
         
         await sendMessage(chatId, lines.join("\n"), {
           parseMode: "HTML",
-          inlineKeyboard: modules.signalKeyboardToTelegram(signalKeyboard),
+          inlineKeyboard: modules.signalKeyboardToTelegram(tickerKeyboard),
         });
       } catch (error) {
         console.error("Fresh scan error:", error);
