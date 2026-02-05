@@ -182,13 +182,22 @@ export default function BlueClawLanding() {
               <span className="text-sky-300 text-sm font-medium">Live on Telegram</span>
             </motion.div>
             
-            {/* Main Title */}
-            <h1 
-              className="text-6xl md:text-8xl font-bold text-white mb-6 tracking-tight"
-              style={{ fontFamily: "var(--font-figtree), Figtree" }}
-            >
-              <span className="text-sky-400">Blue</span>Claw
-            </h1>
+            {/* Main Title with Logo */}
+            <div className="flex items-center justify-center gap-4 md:gap-6 mb-6">
+              <Image
+                src="/teleclaw logo.png"
+                alt="BlueClaw Logo"
+                width={80}
+                height={80}
+                className="w-16 h-16 md:w-20 md:h-20 rounded-2xl"
+              />
+              <h1 
+                className="text-6xl md:text-8xl font-bold text-white tracking-tight"
+                style={{ fontFamily: "var(--font-figtree), Figtree" }}
+              >
+                <span className="text-sky-400">Blue</span>Claw
+              </h1>
+            </div>
             
             {/* Subtitle */}
             <p className="text-xl md:text-2xl text-gray-400 mb-4 max-w-2xl mx-auto leading-relaxed">
