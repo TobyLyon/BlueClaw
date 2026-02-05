@@ -67,29 +67,41 @@ export class AutopostService {
   formatGraduationCall(candidate: GraduationCandidate): string {
     const { graduation, pair, score } = candidate;
     const priceChange = pair.priceChange?.m5 || 0;
+    const mcap = pair.marketCap || 0;
+    const liq = pair.liquidity?.usd || 0;
     const buySellRatio = pair.txns?.m5?.sells 
       ? (pair.txns.m5.buys / pair.txns.m5.sells).toFixed(2) 
       : "∞";
+    
+    // Calculate liquidity ratio - critical PumpFun metric
+    const liqRatio = mcap > 0 ? ((liq / mcap) * 100) : 0;
+    const liqRatioEmoji = liqRatio >= 15 ? "✅" : liqRatio >= 10 ? "⚠️" : "🚨";
 
     const lines = [
       `🎓 **$${graduation.symbol}** just graduated from PumpFun`,
       ``,
       `**Score:** ${score.toFixed(1)}/10`,
       `**Price:** $${parseFloat(pair.priceUsd).toFixed(8)} (${priceChange > 0 ? "+" : ""}${priceChange.toFixed(1)}% 5m)`,
-      `**Liquidity:** $${(pair.liquidity?.usd || 0).toLocaleString()}`,
+      `**Liquidity:** $${liq.toLocaleString()} | **MCap:** $${mcap.toLocaleString()}`,
+      `${liqRatioEmoji} **Liq/MCap:** ${liqRatio.toFixed(1)}% (healthy: 15%+)`,
       `**Volume 5m:** $${(pair.volume?.m5 || 0).toLocaleString()}`,
-      `**MCap:** $${(pair.marketCap || 0).toLocaleString()}`,
       `**Buys/Sells 5m:** ${pair.txns?.m5?.buys || 0}/${pair.txns?.m5?.sells || 0} (${buySellRatio}x)`,
       ``,
       `🔗 [DexScreener](${pair.url}) | \`${graduation.mint.slice(0, 8)}...${graduation.mint.slice(-4)}\``,
     ];
 
-    // Add risk warnings
+    // Add risk warnings based on PumpFun scam patterns
+    if (liqRatio < 10) {
+      lines.push(`🚨 Low liq ratio - potential scam`);
+    }
     if ((pair.liquidity?.usd || 0) < 10000) {
       lines.push(`⚠️ Low liquidity`);
     }
     if (priceChange < -10) {
       lines.push(`⚠️ Price dropping`);
+    }
+    if (pair.txns?.m5?.sells && pair.txns.m5.buys < pair.txns.m5.sells * 0.5) {
+      lines.push(`⚠️ Heavy selling pressure`);
     }
 
     return lines.join("\n");

@@ -269,6 +269,10 @@ export interface GraduationFilter {
   minHolders: number;
   maxAgeMinutes: number;
   excludeRuggedDeployers: boolean;
+  // PumpFun-specific scam detection
+  minLiquidityRatio?: number;      // Min liquidity/mcap ratio (default 8%)
+  maxMcapForAge?: number;          // Max mcap allowed for token age (scam detection)
+  minBuySellRatio?: number;        // Min buy/sell ratio to filter dumps
 }
 
 export interface GraduationCandidate {

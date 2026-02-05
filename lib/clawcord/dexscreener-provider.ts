@@ -339,14 +339,41 @@ export class GraduationWatcher {
     }
 
     // CRITICAL: Check liquidity/mcap ratio - PumpFun tokens graduate at ~17% ratio
-    // Legitimate tokens maintain 10-30% ratio. Below 8% is a major red flag (scam/rug)
+    // Legitimate tokens maintain 10-30% ratio. Below threshold is a major red flag
     const mcap = pair.marketCap || 0;
     const liq = pair.liquidity?.usd || 0;
+    const minLiqRatio = filter.minLiquidityRatio || 8;
     if (mcap > 0 && liq > 0) {
       const liqRatio = (liq / mcap) * 100;
-      if (liqRatio < 8) {
+      if (liqRatio < minLiqRatio) {
         failures.push(
-          `Liq/MCap ratio ${liqRatio.toFixed(1)}% < 8% (scam risk - PumpFun grads start at ~17%)`
+          `Liq/MCap ${liqRatio.toFixed(1)}% < ${minLiqRatio}% (scam risk)`
+        );
+      }
+    }
+
+    // Check buy/sell ratio - dumps in progress are red flags
+    const buys = pair.txns?.m5?.buys || 0;
+    const sells = pair.txns?.m5?.sells || 0;
+    const minBuySellRatio = filter.minBuySellRatio || 0.3;
+    if (sells > 0) {
+      const buySellRatio = buys / sells;
+      if (buySellRatio < minBuySellRatio) {
+        failures.push(
+          `Buy/Sell ratio ${buySellRatio.toFixed(2)} < ${minBuySellRatio} (dump in progress)`
+        );
+      }
+    }
+
+    // Check for suspicious mcap vs age (too high mcap for young token = likely manipulated)
+    if (mcap > 0 && ageMinutes > 0) {
+      // At graduation (~17% liq ratio), mcap is ~$69k
+      // Organic growth: roughly $50k-100k mcap per hour is reasonable
+      // If mcap > $500k in first 30 mins, likely wash trading or manipulation
+      const maxReasonableMcap = 100000 + (ageMinutes * 15000); // ~$15k per minute growth max
+      if (mcap > maxReasonableMcap && ageMinutes < 30) {
+        failures.push(
+          `MCap $${(mcap/1000).toFixed(0)}k suspicious for ${ageMinutes.toFixed(0)}m old token`
         );
       }
     }
@@ -436,15 +463,18 @@ export class GraduationWatcher {
 }
 
 // Optimized defaults based on PumpFun graduation research:
-// - Tokens graduate at ~$75k mcap with ~$12-15k initial liquidity
+// - Tokens graduate at ~$69k mcap with ~$12k initial liquidity (~17% ratio)
 // - Best entry window is 15-45 minutes post-graduation
 // - Only ~1-2% of tokens graduate, so these are already filtered
+// - Healthy tokens maintain 15-30% liquidity/mcap ratio
 export const DEFAULT_GRADUATION_FILTER: GraduationFilter = {
   minLiquidity: 12000,      // Post-graduation baseline from bonding curve
   minVolume5m: 1000,        // Active trading, not dead on arrival
   minHolders: 75,           // Healthy distribution, avoid dev-heavy tokens
   maxAgeMinutes: 45,        // Catch early but after initial dump settles
   excludeRuggedDeployers: true,
+  minLiquidityRatio: 10,    // Min 10% liq/mcap (grads start at ~17%)
+  minBuySellRatio: 0.5,     // At least half as many buys as sells
 };
 
 // Aggressive preset for early snipers (higher risk, higher reward)
@@ -454,6 +484,8 @@ export const AGGRESSIVE_GRADUATION_FILTER: GraduationFilter = {
   minHolders: 40,
   maxAgeMinutes: 20,        // Very early entry
   excludeRuggedDeployers: true,
+  minLiquidityRatio: 8,     // Slightly lower threshold for early plays
+  minBuySellRatio: 0.3,     // More tolerant of selling pressure
 };
 
 // Conservative preset for safer plays
@@ -462,5 +494,7 @@ export const CONSERVATIVE_GRADUATION_FILTER: GraduationFilter = {
   minVolume5m: 2000,        // Strong trading activity
   minHolders: 150,          // Wide distribution
   maxAgeMinutes: 120,       // More time to prove itself
+  minLiquidityRatio: 15,    // Require healthy 15%+ ratio
+  minBuySellRatio: 0.8,     // Strong buy pressure required
   excludeRuggedDeployers: true,
 };

@@ -268,28 +268,49 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
     }
 
     case "alpha": {
-      const config = await getOrCreateChatConfig({ chatId, userId });
-      const watcher = new GraduationWatcher();
-      const candidates = await watcher.scanForGraduations(DEFAULT_GRADUATION_FILTER);
-      const minScore = config.display?.minScore || 6.5;
-      const filtered = candidates.filter((c: any) => c.passesFilter && c.score >= minScore);
-      
-      if (filtered.length === 0) {
-        await sendMessage(chatId, "No alpha at the moment.");
-        return;
+      try {
+        const config = await getOrCreateChatConfig({ chatId, userId });
+        const watcher = new GraduationWatcher();
+        const candidates = await watcher.scanForGraduations(DEFAULT_GRADUATION_FILTER);
+        
+        if (candidates.length === 0) {
+          await sendMessage(chatId, "📊 No tokens available. Try again in a moment.");
+          break;
+        }
+        
+        // Only show tokens that pass ALL filters (including liq ratio, buy/sell ratio)
+        // AND have a high score - this is the "alpha" command so be strict
+        const minScore = config.display?.minScore || 7;
+        const filtered = candidates
+          .filter((c: any) => c.passesFilter && c.score >= minScore)
+          .sort((a: any, b: any) => b.score - a.score);
+        
+        if (filtered.length === 0) {
+          // Show why no alpha - check if it's filtering or scoring
+          const passingFilter = candidates.filter((c: any) => c.passesFilter);
+          if (passingFilter.length === 0) {
+            await sendMessage(chatId, "🔍 No tokens passing scam filters right now.\n\nAll candidates failed liquidity ratio, buy/sell ratio, or other safety checks.");
+          } else {
+            await sendMessage(chatId, `📊 ${passingFilter.length} tokens passed filters but none scored ${minScore}+.\n\nTop: $${passingFilter[0]?.graduation?.symbol} (${passingFilter[0]?.score?.toFixed(1)}/10)`);
+          }
+          break;
+        }
+        
+        const top = filtered[0];
+        const signalKeyboard = modules.generateSignalKeyboard(
+          top.graduation.mint,
+          top.pair.url,
+          top.pair.info?.socials,
+          top.pair.info?.websites
+        );
+        await sendMessage(chatId, modules.formatCompactSignalCard(top, config.vibeMode), {
+          parseMode: "HTML",
+          inlineKeyboard: modules.signalKeyboardToTelegram(signalKeyboard),
+        });
+      } catch (error) {
+        console.error("Alpha command error:", error);
+        await sendMessage(chatId, "❌ Error fetching alpha. Try again.");
       }
-      
-      const top = filtered[0];
-      const signalKeyboard = modules.generateSignalKeyboard(
-        top.graduation.mint,
-        top.pair.url,
-        top.pair.info?.socials,
-        top.pair.info?.websites
-      );
-      await sendMessage(chatId, modules.formatCompactSignalCard(top, config.vibeMode), {
-        parseMode: "HTML",
-        inlineKeyboard: modules.signalKeyboardToTelegram(signalKeyboard),
-      });
       break;
     }
 
