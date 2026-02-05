@@ -23,24 +23,28 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'ClawCord - Signal Caller Dashboard',
-  description: 'Policy-driven signal caller for Solana tokens. Automate your Discord calls with configurable policies and real-time data.',
-  generator: 'v0.app',
+  title: 'BlueClaw - Whale Tracking & On-Chain Signals',
+  description: 'The trading signals that actually work. Whale tracking, holder analysis, and on-chain signals delivered instantly to Telegram.',
   icons: {
-    icon: '/ClawCord logo.png',
-    apple: '/ClawCord logo.png',
+    icon: '/teleclaw logo.png',
+    apple: '/teleclaw logo.png',
   },
   openGraph: {
-    title: 'ClawCord - Signal Caller Dashboard',
-    description: 'Policy-driven signal caller for Solana tokens. Automate your Discord calls with configurable policies and real-time data.',
-    images: ['/clawcord-banner-v2.png'],
+    title: 'BlueClaw - Whale Tracking & On-Chain Signals',
+    description: 'The trading signals that actually work. Whale tracking, holder analysis, and on-chain signals delivered instantly to Telegram.',
+    url: 'https://www.blueclawcalls.xyz',
+    siteName: 'BlueClaw',
+    images: ['/teleclaw logo.png'],
+    type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'ClawCord - Signal Caller Dashboard',
-    description: 'Policy-driven signal caller for Solana tokens.',
-    images: ['/clawcord-banner-v2.png'],
+    title: 'BlueClaw - Whale Tracking & On-Chain Signals',
+    description: 'Whale tracking, holder analysis, on-chain signals. Delivered instantly to Telegram.',
+    images: ['/teleclaw logo.png'],
+    creator: '@BlueClawBot',
   },
+  metadataBase: new URL('https://www.blueclawcalls.xyz'),
 }
 
 export default function RootLayout({
