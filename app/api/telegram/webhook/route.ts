@@ -512,12 +512,12 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
       
       try {
         const watcher = new GraduationWatcher();
-        // Relaxed filter - focus on genuinely new tokens
+        // Filter for potential runners — not junk
         const freshFilter = {
-          minLiquidity: 3000,
-          minVolume5m: 50,
-          minHolders: 10, // Low threshold for very new tokens
-          maxAgeMinutes: 120, // Last 2 hours
+          minLiquidity: 5000,
+          minVolume5m: 500,
+          minHolders: 10,
+          maxAgeMinutes: 60, // Last hour only
           excludeRuggedDeployers: false,
         };
         
@@ -525,7 +525,7 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
         const config = await getOrCreateChatConfig({ chatId });
         
         if (graduations.length === 0) {
-          await sendMessage(chatId, "🆕 No fresh graduations found.\n\nTokens must be <2h old with minimum liquidity. Try /grads for unfiltered results.");
+          await sendMessage(chatId, "🆕 No fresh graduations in the last hour.\n\nTokens must be <60 min old with $5K+ liquidity and $500+ 5m volume. Try /grads for unfiltered results.");
           break;
         }
         

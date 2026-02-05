@@ -141,9 +141,10 @@ export class DexScreenerProvider {
     }
   }
 
-  // Fetch genuinely new pairs from DexScreener's latest pairs endpoint
-  async getLatestSolanaPairs(limit = 50): Promise<DexScreenerPair[]> {
-    const cacheKey = `latest-solana-pairs`;
+  // Fetch genuinely FRESH tokens from DexScreener's latest profiles endpoint
+  // These are tokens that just created their DexScreener profile — actually new
+  async getLatestFreshPairs(limit = 50): Promise<DexScreenerPair[]> {
+    const cacheKey = `fresh-profile-pairs`;
     const cached = this.cache.get(cacheKey);
     
     if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
@@ -151,8 +152,8 @@ export class DexScreenerProvider {
     }
 
     try {
-      const response = await fetch(
-        `${DEXSCREENER_API}/latest/dex/pairs/solana`,
+      const profilesResponse = await fetch(
+        `${DEXSCREENER_API}/token-profiles/latest/v1`,
         {
           headers: {
             "Accept": "application/json",
@@ -161,36 +162,67 @@ export class DexScreenerProvider {
         }
       );
 
-      if (!response.ok) {
-        console.error(`[DexScreener] Latest pairs returned ${response.status}`);
+      if (!profilesResponse.ok) {
+        console.error(`[DexScreener] Latest profiles returned ${profilesResponse.status}`);
         return [];
       }
 
-      const data = await response.json();
-      const pairs: DexScreenerPair[] = data.pairs || [];
+      const profilesData = await profilesResponse.json();
+      const solanaAddresses = (profilesData || [])
+        .filter((p: any) => p.chainId === "solana")
+        .map((p: any) => p.tokenAddress)
+        .slice(0, Math.min(limit * 2, 60)); // Fetch more than needed, filter later
 
-      // Log DEX distribution for debugging
-      const dexCounts: Record<string, number> = {};
-      for (const p of pairs) { dexCounts[p.dexId] = (dexCounts[p.dexId] || 0) + 1; }
-      console.log(`[DexScreener] Latest pairs: ${pairs.length} total, DEX breakdown:`, dexCounts);
+      console.log(`[DexScreener] Got ${solanaAddresses.length} fresh Solana token profiles`);
 
-      // Filter for graduation DEX pairs (Raydium + PumpSwap) and dedupe
-      const seenMints = new Set<string>();
-      const graduationPairs = pairs.filter((pair: DexScreenerPair) => {
-        if (!isGraduationDex(pair.dexId) || pair.chainId !== "solana") return false;
-        if (seenMints.has(pair.baseToken.address)) return false;
-        seenMints.add(pair.baseToken.address);
-        return true;
-      });
+      if (solanaAddresses.length === 0) return [];
 
-      console.log(`[DexScreener] After graduation DEX filter: ${graduationPairs.length} pairs`);
+      // Look up pair data for these tokens (batch in groups of 10)
+      let allPairs: DexScreenerPair[] = [];
+      for (let i = 0; i < solanaAddresses.length; i += 10) {
+        try {
+          const batch = solanaAddresses.slice(i, i + 10);
+          const pairRes = await fetch(
+            `${DEXSCREENER_API}/latest/dex/tokens/${batch.join(",")}`,
+            {
+              headers: {
+                "Accept": "application/json",
+                "User-Agent": "BlueClaw/1.0",
+              },
+            }
+          );
+          if (pairRes.ok) {
+            const pairData = await pairRes.json();
+            const pairs: DexScreenerPair[] = pairData.pairs || [];
+            allPairs = allPairs.concat(pairs);
+          }
+        } catch {
+          // Skip failed batch
+        }
+      }
 
-      // Already sorted newest first by DexScreener
-      const result = graduationPairs.slice(0, limit);
+      // Dedupe by mint address, keep most liquid pair per token
+      const bestPairs = new Map<string, DexScreenerPair>();
+      for (const pair of allPairs) {
+        if (pair.chainId !== "solana") continue;
+        const mint = pair.baseToken.address;
+        const existing = bestPairs.get(mint);
+        if (!existing || (pair.liquidity?.usd || 0) > (existing.liquidity?.usd || 0)) {
+          bestPairs.set(mint, pair);
+        }
+      }
+
+      // Sort by creation time (newest first)
+      const result = Array.from(bestPairs.values())
+        .sort((a, b) => (b.pairCreatedAt || 0) - (a.pairCreatedAt || 0))
+        .slice(0, limit);
+
+      console.log(`[DexScreener] Fresh pairs: ${result.length} unique tokens (newest: ${result[0] ? new Date(result[0].pairCreatedAt).toISOString() : 'none'})`);
+
       this.cache.set(cacheKey, { data: result, timestamp: Date.now() });
       return result;
     } catch (error) {
-      console.error("Failed to fetch latest Solana pairs:", error);
+      console.error("Failed to fetch fresh pairs:", error);
       return [];
     }
   }
@@ -362,9 +394,9 @@ export class GraduationWatcher {
     filter: GraduationFilter
   ): Promise<GraduationCandidate[]> {
     console.log("[GraduationWatcher] Starting FRESH scan...");
-    // Use the working boosts+profiles endpoints instead of the dead /latest/dex/pairs/solana
-    const pairs = await this.dexProvider.getLatestPumpFunGraduations(100);
-    console.log(`[GraduationWatcher] Got ${pairs.length} pairs from boosts+profiles`);
+    // Use latest profiles endpoint — returns genuinely new tokens
+    const pairs = await this.dexProvider.getLatestFreshPairs(50);
+    console.log(`[GraduationWatcher] Got ${pairs.length} fresh pairs from profiles`);
     
     const candidates: GraduationCandidate[] = [];
     const helius = getHeliusProvider();
@@ -440,9 +472,21 @@ export class GraduationWatcher {
     maxAgeMinutes: number = 120
   ): Promise<GraduationCandidate[]> {
     console.log("[GraduationWatcher] Starting ALL GRADS scan (unfiltered)...");
-    // Use the working boosts+profiles endpoints instead of the dead /latest/dex/pairs/solana
-    const pairs = await this.dexProvider.getLatestPumpFunGraduations(100);
-    console.log(`[GraduationWatcher] Got ${pairs.length} pairs from boosts+profiles`);
+    // Use latest profiles for fresh tokens + boosts for popular ones
+    const [freshPairs, boostPairs] = await Promise.all([
+      this.dexProvider.getLatestFreshPairs(50),
+      this.dexProvider.getLatestPumpFunGraduations(50),
+    ]);
+    // Merge and dedupe — fresh first, then boosted
+    const seenMints = new Set<string>();
+    const pairs: DexScreenerPair[] = [];
+    for (const p of [...freshPairs, ...boostPairs]) {
+      if (!seenMints.has(p.baseToken.address)) {
+        seenMints.add(p.baseToken.address);
+        pairs.push(p);
+      }
+    }
+    console.log(`[GraduationWatcher] Got ${pairs.length} total pairs (${freshPairs.length} fresh + ${boostPairs.length} boosted, deduped)`);
 
     const candidates: GraduationCandidate[] = [];
     const helius = getHeliusProvider();
