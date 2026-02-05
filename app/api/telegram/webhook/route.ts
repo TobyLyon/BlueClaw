@@ -561,6 +561,34 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
       break;
     }
 
+    case "grads": {
+      await sendMessage(chatId, "🎓 Fetching all recent graduations...");
+      
+      try {
+        const watcher = new GraduationWatcher();
+        const allGrads = await watcher.scanAllGraduations(120); // Last 2 hours
+        
+        if (allGrads.length === 0) {
+          await sendMessage(chatId, "🎓 No recent graduations found.\n\nDexScreener may be rate-limited. Try again in a minute.");
+          break;
+        }
+        
+        // Cache all for ticker clicks (including flagged ones)
+        scanCache.set(chatId, { candidates: allGrads.slice(0, 8), timestamp: Date.now() });
+        
+        // Format with warning badges
+        const tickerKeyboard = modules.generateTickerKeyboard(allGrads);
+        await sendMessage(chatId, modules.formatAllGraduations(allGrads), {
+          parseMode: "HTML",
+          inlineKeyboard: modules.signalKeyboardToTelegram(tickerKeyboard),
+        });
+      } catch (error) {
+        console.error("Grads scan error:", error);
+        await sendMessage(chatId, "❌ Error fetching graduations. Please try again.");
+      }
+      break;
+    }
+
     case "momentum": {
       const mint = parsed.args[0];
       if (!mint) {

@@ -410,6 +410,127 @@ export class GraduationWatcher {
     );
   }
 
+  // Show ALL recent graduations with warning badges — minimal filtering
+  // Only hard-reject absolute scams (liq ratio <3% or single holder >80%)
+  async scanAllGraduations(
+    maxAgeMinutes: number = 120
+  ): Promise<GraduationCandidate[]> {
+    console.log("[GraduationWatcher] Starting ALL GRADS scan (unfiltered)...");
+    const pairs = await this.dexProvider.getLatestSolanaPairs(50);
+    console.log(`[GraduationWatcher] Got ${pairs.length} latest Solana pairs`);
+
+    const candidates: GraduationCandidate[] = [];
+    const helius = getHeliusProvider();
+
+    for (const pair of pairs) {
+      const ageMinutes = (Date.now() - (pair.pairCreatedAt || 0)) / (1000 * 60);
+      if (ageMinutes > maxAgeMinutes) continue;
+
+      const metrics = this.dexProvider.pairToMetrics(pair);
+
+      try {
+        const [holderCount, topHolderConcentration] = await Promise.all([
+          helius.getTokenHolderCount(pair.baseToken.address).catch(() => 0),
+          helius.getTopHolderConcentration(pair.baseToken.address, 10).catch(() => 0),
+        ]);
+        metrics.holders = holderCount || 0;
+        metrics.topHolderConcentration = topHolderConcentration || 0;
+      } catch {
+        metrics.holders = 0;
+        metrics.topHolderConcentration = 0;
+      }
+
+      // Generate warnings instead of hard rejecting
+      const warnings = this.generateWarnings(pair, metrics);
+
+      // Only hard-reject absolute scams
+      const mcap = pair.marketCap || 0;
+      const liq = pair.liquidity?.usd || 0;
+      const liqRatio = mcap > 0 ? (liq / mcap) * 100 : 0;
+      const isAbsoluteScam = (liqRatio > 0 && liqRatio < 3) || metrics.topHolderConcentration > 80;
+
+      const graduation: PumpFunGraduation = {
+        mint: pair.baseToken.address,
+        symbol: pair.baseToken.symbol,
+        name: pair.baseToken.name,
+        graduatedAt: new Date(pair.pairCreatedAt),
+        bondingCurveAddress: "",
+        raydiumPairAddress: pair.pairAddress,
+        initialLiquidity: liq,
+        initialMarketCap: mcap,
+        creatorAddress: "",
+        imageUrl: pair.info?.imageUrl,
+      };
+
+      const score = this.calculateScore(pair, metrics);
+
+      candidates.push({
+        graduation,
+        pair,
+        metrics,
+        score,
+        passesFilter: !isAbsoluteScam,
+        filterFailures: warnings,
+      });
+    }
+
+    return candidates.sort((a, b) =>
+      (b.pair.pairCreatedAt || 0) - (a.pair.pairCreatedAt || 0)
+    );
+  }
+
+  // Generate warning badges instead of hard rejections
+  // Based on PumpFun graduation research:
+  // - Grads start at ~$69K mcap, ~$12K liq, ~17% liq/mcap ratio
+  // - Early tokens naturally have <50 holders, concentrated top holders
+  // - Key red flags: dev wallet >30%, no socials, liq drained below 5%
+  private generateWarnings(pair: DexScreenerPair, metrics: TokenMetrics): string[] {
+    const warnings: string[] = [];
+    const mcap = pair.marketCap || 0;
+    const liq = pair.liquidity?.usd || 0;
+    const liqRatio = mcap > 0 ? (liq / mcap) * 100 : 0;
+    const buys = pair.txns?.m5?.buys || 0;
+    const sells = pair.txns?.m5?.sells || 0;
+
+    // Liquidity ratio warnings (grads start at ~17%)
+    if (liqRatio > 0 && liqRatio < 5) {
+      warnings.push("🚨 Liq drained (<5%)");
+    } else if (liqRatio > 0 && liqRatio < 8) {
+      warnings.push("⚠️ Low liq ratio (<8%)");
+    }
+
+    // Holder concentration
+    if (metrics.topHolderConcentration > 60) {
+      warnings.push("🚨 Top 10 hold >60%");
+    } else if (metrics.topHolderConcentration > 40) {
+      warnings.push("⚠️ Top 10 hold >40%");
+    }
+
+    // Volume check — no volume = dead
+    if ((pair.volume?.m5 || 0) === 0 && (pair.volume?.h1 || 0) === 0) {
+      warnings.push("💀 No volume");
+    }
+
+    // Sell pressure
+    if (sells > 0 && buys > 0 && (buys / sells) < 0.3) {
+      warnings.push("🔴 Heavy sell pressure");
+    }
+
+    // Very low liquidity (below graduation baseline)
+    if (liq > 0 && liq < 5000) {
+      warnings.push("⚠️ Low liq (<$5K)");
+    }
+
+    // No socials
+    const hasSocials = pair.info?.socials && pair.info.socials.length > 0;
+    const hasWebsite = pair.info?.websites && pair.info.websites.length > 0;
+    if (!hasSocials && !hasWebsite) {
+      warnings.push("👻 No socials");
+    }
+
+    return warnings;
+  }
+
   private applyFilter(
     pair: DexScreenerPair,
     metrics: TokenMetrics,
@@ -480,15 +601,14 @@ export class GraduationWatcher {
       }
     }
 
-    // Check for suspicious mcap vs age (too high mcap for young token = likely manipulated)
-    if (mcap > 0 && ageMinutes > 0) {
-      // At graduation (~17% liq ratio), mcap is ~$69k
-      // Organic growth: roughly $50k-100k mcap per hour is reasonable
-      // If mcap > $500k in first 30 mins, likely wash trading or manipulation
-      const maxReasonableMcap = 100000 + (ageMinutes * 15000); // ~$15k per minute growth max
-      if (mcap > maxReasonableMcap && ageMinutes < 30) {
+    // Check for suspicious mcap vs age — loosened based on research
+    // Viral tokens CAN legitimately pump to $1M+ in minutes
+    // Only flag extreme outliers (>$5M in first 15 min with no volume to back it)
+    if (mcap > 5000000 && ageMinutes < 15) {
+      const vol1h = pair.volume?.h1 || 0;
+      if (vol1h < mcap * 0.1) { // Volume should be at least 10% of mcap for legitimacy
         failures.push(
-          `MCap $${(mcap/1000).toFixed(0)}k suspicious for ${ageMinutes.toFixed(0)}m old token`
+          `MCap $${(mcap/1000).toFixed(0)}k with low volume — possible wash trading`
         );
       }
     }
@@ -583,13 +703,13 @@ export class GraduationWatcher {
 // - Only ~1-2% of tokens graduate, so these are already filtered
 // - Healthy tokens maintain 15-30% liquidity/mcap ratio
 export const DEFAULT_GRADUATION_FILTER: GraduationFilter = {
-  minLiquidity: 12000,      // Post-graduation baseline from bonding curve
-  minVolume5m: 1000,        // Active trading, not dead on arrival
-  minHolders: 75,           // Healthy distribution, avoid dev-heavy tokens
-  maxAgeMinutes: 45,        // Catch early but after initial dump settles
+  minLiquidity: 8000,       // Slightly below graduation baseline (~$12K) to catch early
+  minVolume5m: 200,         // Lowered — early tokens may have light volume
+  minHolders: 20,           // Lowered — new grads may only have 20-40 holders
+  maxAgeMinutes: 60,        // Wider window to catch more candidates
   excludeRuggedDeployers: true,
-  minLiquidityRatio: 10,    // Min 10% liq/mcap (grads start at ~17%)
-  minBuySellRatio: 0.5,     // At least half as many buys as sells
+  minLiquidityRatio: 8,     // Min 8% liq/mcap (grads start at ~17%, allow some drain)
+  minBuySellRatio: 0.3,     // More tolerant — early profit-taking is normal
 };
 
 // Aggressive preset for early snipers (higher risk, higher reward)

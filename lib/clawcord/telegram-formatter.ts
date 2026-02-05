@@ -354,8 +354,9 @@ export function formatHelpMessage(): string {
   return [
     `<b>◎ BlueClaw Commands</b>`,
     ``,
-    `<b>� Discovery:</b>`,
-    `/scan — Top graduating tokens`,
+    `<b>📊 Discovery:</b>`,
+    `/grads — All recent graduations (warnings)`,
+    `/scan — Top scoring tokens`,
     `/alpha — Strict filtered alpha picks`,
     `/fresh — Tokens &lt;60 min old`,
     ``,
@@ -423,6 +424,60 @@ export function formatScanResults(
   if (candidates.length > 5) {
     lines.push(`<i>+${candidates.length - 5} more...</i>`);
   }
+
+  return lines.join("\n");
+}
+
+// Format all graduations with warning badges (for /grads command)
+export function formatAllGraduations(
+  candidates: GraduationCandidate[]
+): string {
+  if (candidates.length === 0) {
+    return "🎓 No recent graduations found. Try again in a minute.";
+  }
+
+  const lines = [`🎓 <b>${candidates.length} Recent Graduation${candidates.length > 1 ? "s" : ""}</b>\n`];
+
+  candidates.slice(0, 8).forEach((c, i) => {
+    const mcapRaw = c.pair.marketCap || 0;
+    const liqRaw = c.pair.liquidity?.usd || 0;
+    const mcap = formatNum(mcapRaw);
+    const liq = formatNum(liqRaw);
+    const symbol = escapeHtml(c.graduation.symbol);
+    const ageMin = Math.round((Date.now() - (c.pair.pairCreatedAt || Date.now())) / 60000);
+
+    // Safety badge based on warnings
+    const warnings = c.filterFailures || [];
+    const hasScamWarning = warnings.some(w => w.includes("🚨"));
+    const hasMildWarning = warnings.some(w => w.includes("⚠️") || w.includes("💀") || w.includes("👻") || w.includes("🔴"));
+    
+    let badge = "🟢"; // Clean
+    if (!c.passesFilter) badge = "🚨"; // Hard reject (absolute scam)
+    else if (hasScamWarning) badge = "🔴";
+    else if (hasMildWarning) badge = "🟡";
+
+    lines.push(
+      `${badge} <b>${i + 1}. ◎ $${symbol}</b> — ${ageMin}m old`
+    );
+    lines.push(
+      `   $${mcap} MC | $${liq} Liq | ${c.score.toFixed(1)}/10`
+    );
+
+    // Show top warning inline if any
+    if (!c.passesFilter) {
+      lines.push(`   <i>⛔ Likely scam</i>`);
+    } else if (warnings.length > 0) {
+      lines.push(`   <i>${warnings.slice(0, 2).join(" · ")}</i>`);
+    }
+
+    lines.push(``);
+  });
+
+  if (candidates.length > 8) {
+    lines.push(`<i>+${candidates.length - 8} more...</i>`);
+  }
+
+  lines.push(`<i>🟢 Clean 🟡 Caution 🔴 Risky 🚨 Scam</i>`);
 
   return lines.join("\n");
 }
