@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { Github, Twitter, Zap, Shield, BarChart3, Users, Terminal, Send, TrendingUp, Target, Clock, MessageCircle, Radio, Cpu } from "lucide-react";
+import { Github, Twitter, Zap, Shield, BarChart3, Users, Terminal, Send, TrendingUp, Target, Clock, MessageCircle, Radio, Cpu, Bot, UserPlus, Settings, CheckCircle2, ArrowRight, Sparkles } from "lucide-react";
 import { AsciiShader } from "@/components/ascii-shader";
 
 // Command examples for Telegram
@@ -407,6 +407,162 @@ export default function BlueClawLanding() {
 
             <p className="mt-8 text-white/60 text-sm">
               No credit card • 2 minute setup • Works with any group
+            </p>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ===== SETUP GUIDE ===== */}
+      <section className="py-24 bg-[#0a1628] relative overflow-hidden">
+        {/* Animated background elements */}
+        <div className="absolute inset-0 overflow-hidden">
+          <motion.div
+            className="absolute top-20 left-10 w-64 h-64 bg-sky-500/5 rounded-full blur-3xl"
+            animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <motion.div
+            className="absolute bottom-20 right-10 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl"
+            animate={{ scale: [1.2, 1, 1.2], opacity: [0.3, 0.5, 0.3] }}
+            transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+          />
+        </div>
+
+        <div className="max-w-6xl mx-auto px-6 relative z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <div className="inline-flex items-center gap-2 bg-sky-500/10 border border-sky-500/20 rounded-full px-4 py-2 mb-6">
+              <Sparkles className="w-4 h-4 text-sky-400" />
+              <span className="text-sm text-sky-400 font-medium">2 Minute Setup</span>
+            </div>
+            <h2 
+              className="text-3xl md:text-5xl font-bold text-white mb-4"
+              style={{ fontFamily: "var(--font-figtree), Figtree" }}
+            >
+              Get Started in 3 Steps
+            </h2>
+            <p className="text-gray-400 max-w-xl mx-auto">
+              Add BlueClaw to your Telegram group and start receiving alpha signals instantly.
+            </p>
+          </motion.div>
+
+          {/* Setup Steps */}
+          <div className="grid md:grid-cols-3 gap-8 mb-16">
+            {[
+              {
+                step: 1,
+                icon: Bot,
+                title: "Add the Bot",
+                description: "Click the button below to open BlueClaw in Telegram, then tap 'Add to Group'",
+                details: ["Search @BlueClawCallsBot", "Tap 'Add to Group'", "Select your group"],
+                color: "sky",
+              },
+              {
+                step: 2,
+                icon: UserPlus,
+                title: "Make Admin",
+                description: "Promote BlueClaw to admin so it can post signals to your group",
+                details: ["Open Group Settings", "Tap 'Administrators'", "Add BlueClaw as admin"],
+                color: "cyan",
+              },
+              {
+                step: 3,
+                icon: Settings,
+                title: "Configure",
+                description: "Use /config to customize risk levels, policies, and autopost settings",
+                details: ["Type /config", "Set risk level 1-10", "Enable autopost"],
+                color: "teal",
+              },
+            ].map((item, index) => (
+              <motion.div
+                key={item.step}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.15 }}
+                className="relative"
+              >
+                {/* Connector line */}
+                {index < 2 && (
+                  <div className="hidden md:block absolute top-16 left-[calc(100%+1rem)] w-[calc(100%-2rem)] h-[2px]">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-sky-500/50 to-transparent"
+                      initial={{ scaleX: 0 }}
+                      whileInView={{ scaleX: 1 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: 0.5 + index * 0.2, duration: 0.5 }}
+                      style={{ transformOrigin: "left" }}
+                    />
+                  </div>
+                )}
+
+                <div className="bg-[#0d1f35] border border-sky-500/10 rounded-2xl p-8 h-full hover:border-sky-500/30 transition-colors group">
+                  {/* Step number with animated icon */}
+                  <div className="flex items-center gap-4 mb-6">
+                    <motion.div
+                      className={`w-14 h-14 rounded-xl bg-${item.color}-500/10 border border-${item.color}-500/20 flex items-center justify-center relative overflow-hidden`}
+                      whileHover={{ scale: 1.05 }}
+                      style={{ backgroundColor: `rgb(14 165 233 / 0.1)`, borderColor: `rgb(14 165 233 / 0.2)` }}
+                    >
+                      <motion.div
+                        className="absolute inset-0 bg-gradient-to-br from-sky-400/20 to-transparent"
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                      />
+                      <item.icon className="w-6 h-6 text-sky-400 relative z-10" />
+                    </motion.div>
+                    <div className="flex flex-col">
+                      <span className="text-xs text-sky-400 font-medium uppercase tracking-wider">Step {item.step}</span>
+                      <h3 className="text-xl font-bold text-white">{item.title}</h3>
+                    </div>
+                  </div>
+
+                  <p className="text-gray-400 mb-6">{item.description}</p>
+
+                  {/* Checklist */}
+                  <ul className="space-y-3">
+                    {item.details.map((detail, i) => (
+                      <motion.li
+                        key={i}
+                        initial={{ opacity: 0, x: -10 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: 0.3 + index * 0.1 + i * 0.1 }}
+                        className="flex items-center gap-3 text-sm"
+                      >
+                        <CheckCircle2 className="w-4 h-4 text-sky-400 flex-shrink-0" />
+                        <span className="text-gray-300">{detail}</span>
+                      </motion.li>
+                    ))}
+                  </ul>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* CTA Button */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center"
+          >
+            <a
+              href="https://t.me/BlueClawCallsBot"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-3 bg-gradient-to-r from-sky-500 to-cyan-500 text-white px-8 py-4 rounded-xl text-lg font-semibold hover:from-sky-400 hover:to-cyan-400 transition-all duration-200 shadow-lg shadow-sky-500/25 hover:shadow-xl hover:shadow-sky-500/30 hover:scale-[1.02]"
+            >
+              <Send className="w-5 h-5" />
+              Add BlueClaw to Telegram
+              <ArrowRight className="w-5 h-5" />
+            </a>
+            <p className="mt-4 text-gray-500 text-sm">
+              Free forever • No credit card required • Works with groups & channels
             </p>
           </motion.div>
         </div>
