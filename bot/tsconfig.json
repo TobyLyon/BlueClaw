@@ -14,11 +14,12 @@
     "declarationMap": true,
     "sourceMap": true,
     "moduleResolution": "node",
+    "types": ["node"],
     "paths": {
       "@/*": ["../*"]
     },
     "baseUrl": "."
   },
-  "include": ["./**/*.ts", "../lib/**/*.ts"],
+  "include": ["./**/*.ts", "./telegram/**/*.ts", "../lib/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

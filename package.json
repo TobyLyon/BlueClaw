@@ -9,7 +9,12 @@
     "start": "next start",
     "bot": "npx tsx bot/index.ts",
     "bot:build": "tsc -p bot/tsconfig.json",
-    "bot:start": "node bot/dist/bot/index.js"
+    "bot:start": "node bot/dist/bot/index.js",
+    "telegram": "npx tsx bot/telegram/index.ts",
+    "telegram:build": "tsc -p bot/tsconfig.json",
+    "telegram:start": "node bot/dist/bot/telegram/index.js",
+    "telegram:autopost": "npx tsx bot/telegram/autopost-runner.ts",
+    "telegram:autopost:start": "node bot/dist/bot/telegram/autopost-runner.js"
   },
   "dependencies": {
     "@emotion/is-prop-valid": "latest",
