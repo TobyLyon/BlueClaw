@@ -705,7 +705,7 @@ export class GraduationWatcher {
 export const DEFAULT_GRADUATION_FILTER: GraduationFilter = {
   minLiquidity: 8000,       // Slightly below graduation baseline (~$12K) to catch early
   minVolume5m: 200,         // Lowered — early tokens may have light volume
-  minHolders: 20,           // Lowered — new grads may only have 20-40 holders
+  minHolders: 75,           // Tokens always graduate with 75+ holders
   maxAgeMinutes: 60,        // Wider window to catch more candidates
   excludeRuggedDeployers: true,
   minLiquidityRatio: 8,     // Min 8% liq/mcap (grads start at ~17%, allow some drain)
@@ -716,7 +716,7 @@ export const DEFAULT_GRADUATION_FILTER: GraduationFilter = {
 export const AGGRESSIVE_GRADUATION_FILTER: GraduationFilter = {
   minLiquidity: 8000,
   minVolume5m: 500,
-  minHolders: 40,
+  minHolders: 75,           // All grads have 75+ holders
   maxAgeMinutes: 20,        // Very early entry
   excludeRuggedDeployers: true,
   minLiquidityRatio: 8,     // Slightly lower threshold for early plays
