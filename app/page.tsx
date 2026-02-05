@@ -123,10 +123,38 @@ export default function BlueClawLanding() {
               <span className="text-sky-400">Blue</span>Claw
             </span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* Contract Address - Click to Copy */}
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText("PLACEHOLDER_CONTRACT_ADDRESS");
+                const btn = document.getElementById("copy-ca-btn");
+                if (btn) {
+                  btn.textContent = "Copied!";
+                  setTimeout(() => { btn.textContent = "CA: PLAC...LDER"; }, 2000);
+                }
+              }}
+              id="copy-ca-btn"
+              className="px-3 py-1.5 rounded-lg text-xs font-mono text-sky-300 bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 hover:border-sky-500/30 transition-all cursor-pointer"
+            >
+              CA: PLAC...LDER
+            </button>
+            
             <a href="/docs" className="text-gray-400 hover:text-white transition-colors text-sm">
               Docs
             </a>
+            
+            {/* Twitter/X Link */}
+            <a
+              href="https://twitter.com/BlueClaw"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-400 hover:text-white transition-colors"
+              title="Follow us on X"
+            >
+              <Twitter className="w-5 h-5" />
+            </a>
+            
             <a
               href="https://t.me/BlueClawCallsBot"
               target="_blank"
