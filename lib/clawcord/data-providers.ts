@@ -267,14 +267,83 @@ export class HeliusProvider {
   }
 }
 
-// Singleton instance
+// RugCheck.xyz API - free rug risk scores, mint/freeze authority, LP lock status
+export interface RugCheckReport {
+  score: number;           // 0-100 (higher = safer)
+  risks: { name: string; description: string; level: string; score: number }[];
+  mintAuthority: string | null;
+  freezeAuthority: string | null;
+  lpLocked: boolean;
+  lpLockedPct: number;
+  topHolders: { address: string; pct: number }[];
+  isRugged: boolean;
+}
+
+export class RugCheckProvider {
+  private baseUrl = "https://api.rugcheck.xyz/v1";
+  private cache: Map<string, { data: RugCheckReport; timestamp: number }> = new Map();
+  private cacheTTL = 120_000; // 2 min cache (data doesn't change fast)
+
+  async getTokenReport(mint: string): Promise<RugCheckReport | null> {
+    const cached = this.cache.get(mint);
+    if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
+      return cached.data;
+    }
+
+    try {
+      const response = await fetch(`${this.baseUrl}/tokens/${mint}/report`, {
+        headers: { "Accept": "application/json" },
+      });
+
+      if (!response.ok) return null;
+
+      const data = await response.json();
+
+      const report: RugCheckReport = {
+        score: data.score ?? 0,
+        risks: (data.risks || []).map((r: any) => ({
+          name: r.name || "",
+          description: r.description || "",
+          level: r.level || "unknown",
+          score: r.score || 0,
+        })),
+        mintAuthority: data.token?.mintAuthority || null,
+        freezeAuthority: data.token?.freezeAuthority || null,
+        lpLocked: (data.markets || []).some((m: any) => m.lp?.lpLockedPct > 50),
+        lpLockedPct: (data.markets || []).reduce((max: number, m: any) => 
+          Math.max(max, m.lp?.lpLockedPct || 0), 0),
+        topHolders: (data.topHolders || []).slice(0, 10).map((h: any) => ({
+          address: h.address || "",
+          pct: h.pct || 0,
+        })),
+        isRugged: data.rugged === true,
+      };
+
+      this.cache.set(mint, { data: report, timestamp: Date.now() });
+      return report;
+    } catch (error) {
+      console.error(`RugCheck failed for ${mint}:`, error);
+      return null;
+    }
+  }
+}
+
+// Singleton instances
 let heliusInstance: HeliusProvider | null = null;
+let rugCheckInstance: RugCheckProvider | null = null;
 
 export function getHeliusProvider(): HeliusProvider {
   if (!heliusInstance) {
     heliusInstance = new HeliusProvider();
   }
   return heliusInstance;
+}
+
+export function getRugCheckProvider(): RugCheckProvider {
+  if (!rugCheckInstance) {
+    rugCheckInstance = new RugCheckProvider();
+  }
+  return rugCheckInstance;
 }
 
 // Factory function to create the appropriate provider

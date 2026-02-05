@@ -455,13 +455,14 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
       await sendMessage(chatId, "🔍 Analyzing whale activity...");
       
       try {
-        const signals = await import("../../../../lib/clawcord/signals-analyzer");
-        const whaleData = await signals.analyzeWhaleActivity(mint);
-        
-        // Get symbol from DexScreener
-        const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`);
-        const dexData = await dexRes.json();
-        const symbol = dexData.pairs?.[0]?.baseToken?.symbol || "TOKEN";
+        const signals = await import("@/lib/clawcord/signals-analyzer");
+        const { DexScreenerProvider } = await import("@/lib/clawcord/dexscreener-provider");
+        const dex = new DexScreenerProvider();
+        const [whaleData, pair] = await Promise.all([
+          signals.analyzeWhaleActivity(mint),
+          dex.getPairByMint(mint),
+        ]);
+        const symbol = pair?.baseToken?.symbol || "TOKEN";
         
         const message = signals.formatWhaleMessage(symbol, mint, whaleData);
         await sendMessage(chatId, message, {
@@ -485,13 +486,14 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
       await sendMessage(chatId, "🔍 Analyzing holder distribution...");
       
       try {
-        const signals = await import("../../../../lib/clawcord/signals-analyzer");
-        const holderData = await signals.analyzeHolders(mint);
-        
-        // Get symbol from DexScreener
-        const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`);
-        const dexData = await dexRes.json();
-        const symbol = dexData.pairs?.[0]?.baseToken?.symbol || "TOKEN";
+        const signals = await import("@/lib/clawcord/signals-analyzer");
+        const { DexScreenerProvider } = await import("@/lib/clawcord/dexscreener-provider");
+        const dex = new DexScreenerProvider();
+        const [holderData, pair] = await Promise.all([
+          signals.analyzeHolders(mint),
+          dex.getPairByMint(mint),
+        ]);
+        const symbol = pair?.baseToken?.symbol || "TOKEN";
         
         const message = signals.formatHoldersMessage(symbol, mint, holderData);
         await sendMessage(chatId, message, {
@@ -599,12 +601,10 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
       await sendMessage(chatId, "🔍 Analyzing momentum...");
       
       try {
-        const signals = await import("../../../../lib/clawcord/signals-analyzer");
-        
-        // Get pair data from DexScreener
-        const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`);
-        const dexData = await dexRes.json();
-        const pair = dexData.pairs?.[0];
+        const signals = await import("@/lib/clawcord/signals-analyzer");
+        const { DexScreenerProvider } = await import("@/lib/clawcord/dexscreener-provider");
+        const dex = new DexScreenerProvider();
+        const pair = await dex.getPairByMint(mint);
         
         if (!pair) {
           await sendMessage(chatId, "❌ Token not found on DexScreener.");
@@ -636,12 +636,10 @@ async function handleMessage(message: TelegramMessage): Promise<void> {
       await sendMessage(chatId, "🔍 Analyzing risk factors...");
       
       try {
-        const signals = await import("../../../../lib/clawcord/signals-analyzer");
-        
-        // Get pair data from DexScreener
-        const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`);
-        const dexData = await dexRes.json();
-        const pair = dexData.pairs?.[0];
+        const signals = await import("@/lib/clawcord/signals-analyzer");
+        const { DexScreenerProvider } = await import("@/lib/clawcord/dexscreener-provider");
+        const dex = new DexScreenerProvider();
+        const pair = await dex.getPairByMint(mint);
         
         if (!pair) {
           await sendMessage(chatId, "❌ Token not found on DexScreener.");

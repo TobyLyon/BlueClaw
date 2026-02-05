@@ -276,11 +276,44 @@ export async function analyzeRisk(
   mint: string,
   pair: any
 ): Promise<RiskBreakdown> {
-  const holders = await analyzeHolders(mint);
-  const whales = await analyzeWhaleActivity(mint);
+  // Fetch all data in parallel — RugCheck + Helius holders + whales
+  const { getRugCheckProvider } = await import("./data-providers");
+  const rugCheck = getRugCheckProvider();
+
+  const [holders, whales, rugReport] = await Promise.all([
+    analyzeHolders(mint),
+    analyzeWhaleActivity(mint),
+    rugCheck.getTokenReport(mint).catch(() => null),
+  ]);
 
   const factors: string[] = [];
   
+  // RugCheck data — real on-chain safety checks
+  if (rugReport) {
+    if (rugReport.mintAuthority) {
+      factors.push("🚨 Mint authority enabled — supply can inflate");
+    } else {
+      factors.push("✅ Mint authority revoked");
+    }
+    if (rugReport.freezeAuthority) {
+      factors.push("🚨 Freeze authority enabled — tokens can be frozen");
+    } else {
+      factors.push("✅ Freeze authority revoked");
+    }
+    if (rugReport.lpLocked) {
+      factors.push(`✅ LP locked (${rugReport.lpLockedPct.toFixed(0)}%)`);
+    } else {
+      factors.push("⚠️ LP not locked");
+    }
+    if (rugReport.isRugged) {
+      factors.push("🚨 Flagged as rugged on RugCheck");
+    }
+    // Show high-severity risks from RugCheck
+    for (const risk of rugReport.risks.filter(r => r.level === "danger" || r.level === "error")) {
+      factors.push(`🚨 ${risk.name}`);
+    }
+  }
+
   // Holder risk (0-10, lower is better)
   let holderRisk = 5;
   if (holders.top10Concentration > 60) {
@@ -337,8 +370,17 @@ export async function analyzeRisk(
     factors.push("✅ Established (>48 hours)");
   }
 
+  // RugCheck score adjusts overall (if available)
+  let rugAdjust = 0;
+  if (rugReport) {
+    if (rugReport.mintAuthority) holderRisk = Math.min(10, holderRisk + 2);
+    if (rugReport.freezeAuthority) holderRisk = Math.min(10, holderRisk + 1);
+    if (rugReport.lpLocked) liquidityRisk = Math.max(1, liquidityRisk - 2);
+    if (rugReport.isRugged) rugAdjust = 3; // Major penalty
+  }
+
   // Calculate overall score (10 = safest)
-  const avgRisk = (holderRisk + liquidityRisk + whaleRisk + ageRisk) / 4;
+  const avgRisk = (holderRisk + liquidityRisk + whaleRisk + ageRisk) / 4 + rugAdjust;
   const overallScore = Math.round((10 - avgRisk) * 10) / 10;
 
   return {

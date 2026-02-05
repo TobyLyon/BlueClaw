@@ -19,6 +19,8 @@ export {
   BirdeyeProvider,
   HeliusProvider,
   getHeliusProvider,
+  RugCheckProvider,
+  getRugCheckProvider,
   createDataProvider,
 } from "./data-providers";
 

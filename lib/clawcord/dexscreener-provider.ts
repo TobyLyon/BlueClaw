@@ -89,10 +89,13 @@ export class DexScreenerProvider {
             .filter((p: any) => p.chainId === "solana")
             .slice(0, limit - allPairs.length);
 
-          for (const profile of solanaProfiles) {
+          // Batch profile tokens in groups of 10 (same as boosts path)
+          const profileAddresses = solanaProfiles.map((p: any) => p.tokenAddress);
+          for (let i = 0; i < profileAddresses.length; i += 10) {
             try {
+              const batch = profileAddresses.slice(i, i + 10);
               const pairRes = await fetch(
-                `${DEXSCREENER_API}/latest/dex/tokens/${profile.tokenAddress}`,
+                `${DEXSCREENER_API}/latest/dex/tokens/${batch.join(",")}`,
                 {
                   headers: {
                     "Accept": "application/json",
@@ -102,12 +105,11 @@ export class DexScreenerProvider {
               );
               if (pairRes.ok) {
                 const pairData = await pairRes.json();
-                if (pairData.pairs?.length > 0) {
-                  allPairs.push(pairData.pairs[0]);
-                }
+                const pairs: DexScreenerPair[] = pairData.pairs || [];
+                allPairs = allPairs.concat(pairs);
               }
             } catch {
-              // Skip failed individual fetches
+              // Skip failed batch
             }
           }
         }
